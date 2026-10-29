@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { compactCount } from "@/lib/format";
 import { Check, ChevronRight } from "lucide-react";
@@ -19,6 +19,7 @@ import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Dialog } from "@/components/ui/Dialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { FitStack } from "./FitStack";
 import { CrowdVsApexWidget } from "./CrowdVsApexWidget";
 import type { CrowdVsModel } from "@/lib/supabase/communityWeekend";
@@ -26,6 +27,7 @@ import { EYEBROW, PANEL } from "./panel";
 import { RollingText } from "@/components/ui/RollingNumber";
 import { RingChart, Ring, RingCenter } from "@/components/charts/ring/ring-chart";
 import { ApexWidget } from "./ApexWidget";
+import { useStreamed, type Streamable } from "./useStreamed";
 
 export type NextRace = { year: number; round: number; name: string; raceDate: string | null; country: string | null; circuit: string | null; photoUrl: string | null } | null;
 
@@ -47,32 +49,116 @@ export function GroupsRightSidebar({
   crowdVsModel = null,
 }: {
   /** Your communities against the Apex model this season. */
-  crowdVsModel?: CrowdVsModel | null;
+  crowdVsModel?: Streamable<CrowdVsModel | null>;
   /** Whether the rail is the fixed-height column beside the scrolling feed (from xl) or simply follows the page. */
   fixedHeight?: boolean;
-  predictions: FeedPrediction[];
-  nextRace: NextRace;
+  predictions: Streamable<FeedPrediction[]>;
+  nextRace: Streamable<NextRace>;
   /** Public communities the viewer isn't in, for "Communities to join". */
-  suggestions?: PublicGroupSummary[];
+  suggestions?: Streamable<PublicGroupSummary[]>;
   onDiscover?: () => void;
 }) {
   return (
     <FitStack when={fixedHeight ? FIXED_HEIGHT : "not all"} className={fixedHeight ? "xl:h-full xl:overflow-hidden" : ""} gap={12}>
       <div data-tour="race-weekend" className={`${WIDGET} overflow-hidden`}>
-        <RaceWeekend race={nextRace} />
+        <Suspense fallback={<RaceWeekendWidgetSkeleton />}>
+          <StreamedRaceWeekend race={nextRace} />
+        </Suspense>
       </div>
       <div className={`${WIDGET} p-4`}>
-        <ApexWidget location={nextRace?.circuit ?? null} year={nextRace?.year ?? null} />
+        <Suspense fallback={<ApexWidgetSkeleton />}>
+          <StreamedApexWidget race={nextRace} />
+        </Suspense>
       </div>
       <div className={`${WIDGET} p-4`}>
-        <ActivePredictions predictions={predictions} crowdVsModel={crowdVsModel} />
+        <Suspense fallback={<ActivePredictionsWidgetSkeleton />}>
+          <StreamedActivePredictions predictions={predictions} crowdVsModel={crowdVsModel} />
+        </Suspense>
       </div>
-      {suggestions.length > 0 && (
-        <div className={`${WIDGET} p-4`}>
-          <SuggestedCommunities communities={suggestions} onDiscover={onDiscover} />
-        </div>
-      )}
+      <Suspense fallback={<SuggestedCommunitiesWidgetSkeleton />}>
+        <StreamedSuggestedCommunities suggestions={suggestions} onDiscover={onDiscover} />
+      </Suspense>
     </FitStack>
+  );
+}
+
+function StreamedRaceWeekend({ race }: { race: Streamable<NextRace> }) {
+  const resolved = useStreamed(race);
+  return <RaceWeekend race={resolved} />;
+}
+
+function StreamedApexWidget({ race }: { race: Streamable<NextRace> }) {
+  const resolved = useStreamed(race);
+  return <ApexWidget location={resolved?.circuit ?? null} year={resolved?.year ?? null} />;
+}
+
+function StreamedActivePredictions({ predictions, crowdVsModel }: { predictions: Streamable<FeedPrediction[]>; crowdVsModel: Streamable<CrowdVsModel | null> }) {
+  const resolvedPredictions = useStreamed(predictions);
+  return <ActivePredictions predictions={resolvedPredictions} crowdVsModel={crowdVsModel} />;
+}
+
+function StreamedSuggestedCommunities({ suggestions, onDiscover }: { suggestions: Streamable<PublicGroupSummary[]>; onDiscover?: () => void }) {
+  const resolved = useStreamed(suggestions);
+  if (resolved.length === 0) return null;
+  return (
+    <div className={`${WIDGET} p-4`}>
+      <SuggestedCommunities communities={resolved} onDiscover={onDiscover} />
+    </div>
+  );
+}
+
+export function RaceWeekendWidgetSkeleton() {
+  return (
+    <div role="status" aria-label="Loading race weekend">
+      <Skeleton shape="block" className="h-28 w-full rounded-none" />
+      <div className="p-4">
+        <Skeleton shape="block" className="h-3.5 w-24" />
+        <Skeleton shape="block" className="mt-2 h-6 w-56" />
+        <Skeleton shape="block" className="mt-4 h-7 w-24" />
+      </div>
+    </div>
+  );
+}
+
+export function ApexWidgetSkeleton() {
+  return (
+    <div role="status" aria-label="Loading Apex briefing">
+      <Skeleton shape="block" className="h-4 w-20" />
+      <Skeleton shape="block" className="mt-3 h-3.5 w-full" />
+      <Skeleton shape="block" className="mt-2 h-3.5 w-4/5" />
+    </div>
+  );
+}
+
+export function ActivePredictionsWidgetSkeleton() {
+  return (
+    <div role="status" aria-label="Loading open rounds">
+      <Skeleton shape="block" className="h-4 w-28" />
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div key={i} className="mt-4">
+          <Skeleton shape="block" className="h-3.5 w-32" />
+          <Skeleton shape="block" className="mt-1.5 h-3 w-44" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function SuggestedCommunitiesWidgetSkeleton() {
+  return (
+    <div role="status" aria-label="Loading suggested communities" className={`${WIDGET} p-4`}>
+      <Skeleton shape="block" className="h-3.5 w-36" />
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div key={i} className="mt-3 flex items-center gap-3">
+          <Skeleton shape="circle" className="size-7 shrink-0" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton shape="block" className="h-3.5 w-28" />
+            <Skeleton shape="block" className="h-3 w-20" />
+          </div>
+          <Skeleton shape="block" className="h-7 w-14 rounded-control" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -185,7 +271,7 @@ const RAIL_ROUNDS = 2;
  * the minute it closes. The ones you haven't entered come first, then the soonest to close; two are listed and the
  * rest open in a dialog. Each row says what you'd play for (its entry points) and where you stand.
  */
-function ActivePredictions({ predictions: allPredictions, crowdVsModel }: { predictions: FeedPrediction[]; crowdVsModel: CrowdVsModel | null }) {
+function ActivePredictions({ predictions: allPredictions, crowdVsModel }: { predictions: FeedPrediction[]; crowdVsModel: Streamable<CrowdVsModel | null> }) {
   const now = useMinuteClock();
   const [showAll, setShowAll] = useState(false);
   const [showRecord, setShowRecord] = useState(false);
@@ -246,7 +332,9 @@ function ActivePredictions({ predictions: allPredictions, crowdVsModel }: { pred
       )}
       {/* Crowd vs Apex, the season's running score, under the rounds it's made of: one line, the breakdown a click
           away. Shown before any round has settled too, so the rivalry is known before it starts. */}
-      {crowdVsModel && <CrowdVsApexLine record={crowdVsModel} onOpen={() => setShowRecord(true)} />}
+      <Suspense fallback={<Skeleton shape="block" className="mt-3 h-4 w-40" />}>
+        <StreamedCrowdVsApexSection crowdVsModel={crowdVsModel} showRecord={showRecord} setShowRecord={setShowRecord} />
+      </Suspense>
 
       <Dialog open={showAll} onClose={() => setShowAll(false)} title="Open prediction rounds" size="sm">
         <ul>
@@ -257,12 +345,28 @@ function ActivePredictions({ predictions: allPredictions, crowdVsModel }: { pred
           ))}
         </ul>
       </Dialog>
-      {crowdVsModel && (
-        <Dialog open={showRecord} onClose={() => setShowRecord(false)} title="Crowd vs Apex" size="sm">
-          <CrowdVsApexWidget record={crowdVsModel} heading={false} />
-        </Dialog>
-      )}
     </div>
+  );
+}
+
+function StreamedCrowdVsApexSection({
+  crowdVsModel,
+  showRecord,
+  setShowRecord,
+}: {
+  crowdVsModel: Streamable<CrowdVsModel | null>;
+  showRecord: boolean;
+  setShowRecord: (v: boolean) => void;
+}) {
+  const resolved = useStreamed(crowdVsModel);
+  if (!resolved) return null;
+  return (
+    <>
+      <CrowdVsApexLine record={resolved} onOpen={() => setShowRecord(true)} />
+      <Dialog open={showRecord} onClose={() => setShowRecord(false)} title="Crowd vs Apex" size="sm">
+        <CrowdVsApexWidget record={resolved} heading={false} />
+      </Dialog>
+    </>
   );
 }
 

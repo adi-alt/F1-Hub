@@ -18,7 +18,11 @@ export function useFitCount(root: RefObject<HTMLElement | null>, gap: number, de
       let used = 0;
       let n = 0;
       for (const child of Array.from(el.children) as HTMLElement[]) {
-        const next = used + (n ? gap : 0) + child.offsetHeight;
+        if (child.offsetHeight === 0) {
+          n++;
+          continue;
+        }
+        const next = used + (used > 0 ? gap : 0) + child.offsetHeight;
         if (next > el.clientHeight + 0.5) break;
         used = next;
         n++;

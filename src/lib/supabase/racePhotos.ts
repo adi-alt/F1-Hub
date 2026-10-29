@@ -60,6 +60,21 @@ export const getApprovedRacePhotos = unstable_cache(
   { revalidate: false, tags: [RACE_PHOTOS_TAG] },
 );
 
+/** Batched approved photos across multiple race IDs in one query (used by circuit photo history). */
+export const getApprovedRacePhotosByRaceIds = unstable_cache(
+  async (raceIds: string[]): Promise<RacePhoto[]> => {
+    const unique = [...new Set(raceIds)];
+    if (unique.length === 0) return [];
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("race_photos").select(`${PHOTO_COLUMNS}, rank`).in("race_id", unique).order("rank"),
+    );
+    if (error) throw new Error(`getApprovedRacePhotosByRaceIds: ${error.message}`);
+    return ((data ?? []) as ApprovedRow[]).map((r) => ({ ...toPhoto(r), rank: r.rank })).filter(isPublishable);
+  },
+  ["race-photos-by-ids"],
+  { revalidate: false, tags: [RACE_PHOTOS_TAG] },
+);
+
 // ------------------------------------------------------------------------------------- admin (uncached)
 
 export type ReviewRace = { id: string; name: string; year: number; pending: number; approved: number };

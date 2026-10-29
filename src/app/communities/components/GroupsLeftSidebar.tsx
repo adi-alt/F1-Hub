@@ -1,10 +1,11 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight, Compass, Home, MoreHorizontal, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { EYEBROW, PANEL } from "./panel";
 import { LayoutGroup, motion } from "motion/react";
 import { EntityAvatar } from "@/components/EntityAvatar";
@@ -13,6 +14,7 @@ import { groupHref } from "@/lib/routes";
 import type { GroupSummary } from "@/lib/supabase/groups";
 import type { CommunityPulseData } from "@/lib/supabase/communityPulse";
 import { CommunityPulseCard } from "./CommunityPulseCard";
+import { useStreamed, type Streamable } from "./useStreamed";
 
 /** Row height (36px) plus the gap between rows: the list is sized in whole rows. */
 const ROW_PX = 36 + 2;
@@ -39,7 +41,7 @@ export function GroupsLeftSidebar({
   onSelect: (id: string | null) => void;
   onCreate: () => void;
   onDiscover: () => void;
-  pulse: CommunityPulseData;
+  pulse: Streamable<CommunityPulseData>;
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLElement>(null);
@@ -127,7 +129,9 @@ export function GroupsLeftSidebar({
 
       {/* Only when the window is tall enough to give the list room as well. */}
       <div ref={pulseRef} className={`hidden shrink-0 px-2 py-3 ${PANEL} [@media(min-height:760px)]:block`}>
-        <CommunityPulseCard groups={groups} pulse={pulse} />
+        <Suspense fallback={<CommunityPulseSkeleton />}>
+          <StreamedPulse groups={groups} pulse={pulse} />
+        </Suspense>
       </div>
 
       <Dialog open={showAll} onClose={() => setShowAll(false)} title="Your communities" size="sm">
@@ -160,6 +164,27 @@ export function GroupsLeftSidebar({
 
 const ROW =
   "flex h-9 w-full items-center gap-2.5 rounded-control px-1.5 text-left transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring";
+
+function StreamedPulse({ groups, pulse }: { groups: GroupSummary[]; pulse: Streamable<CommunityPulseData> }) {
+  const resolved = useStreamed(pulse);
+  return <CommunityPulseCard groups={groups} pulse={resolved} />;
+}
+
+export function CommunityPulseSkeleton() {
+  return (
+    <div role="status" aria-label="Loading activity pulse" className="px-2">
+      <Skeleton shape="block" className="h-3.5 w-28" />
+      <div className="mt-2.5 grid grid-cols-3 gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="space-y-1">
+            <Skeleton shape="block" className="h-5 w-8" />
+            <Skeleton shape="block" className="h-3 w-12" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function AllRow({ active, onClick }: { active: boolean; onClick: () => void }) {
   return (

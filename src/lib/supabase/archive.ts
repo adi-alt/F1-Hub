@@ -626,6 +626,24 @@ export const getArchiveRacesByCircuitId = unstable_cache(
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
 
+/** Lightweight photo-only projection for getRecentCircuitPhotos: avoids fetching ARCHIVE_RACE_SELECT
+ * (results, qualifying, pit stops) when only year and photo URLs are needed. */
+export const getArchiveRacePhotosByCircuitId = unstable_cache(
+  async (circuitId: string): Promise<{ year: number; photoUrl: string | null; photoUrls: string[] | null }[]> => {
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin.from("archive_races").select("year, photo_url, photo_urls").eq("circuit_id", circuitId).order("year"),
+    );
+    if (error) throw new Error(`getArchiveRacePhotosByCircuitId(${circuitId}): ${error.message}`);
+    return ((data ?? []) as { year: number; photo_url: string | null; photo_urls: string[] | null }[]).map((r) => ({
+      year: r.year,
+      photoUrl: r.photo_url ?? null,
+      photoUrls: r.photo_urls ?? null,
+    }));
+  },
+  ["get-archive-race-photos-by-circuit"],
+  { revalidate: false, tags: [ARCHIVE_TAG] },
+);
+
 /** Every running of one Grand Prix by its name, across every circuit it has used (the Spanish Grand Prix at
  * Pedralbes, Jarama, Montjuic, Jerez and Barcelona), oldest first: an event's history follows the event. */
 export const getArchiveRacesByName = unstable_cache(

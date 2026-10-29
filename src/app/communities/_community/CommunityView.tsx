@@ -21,7 +21,7 @@ import { getGroupPulse, getGroupStats, type GroupStats } from "@/lib/supabase/gr
 import { getPredictionTrends, listPredictions, type PredictionTrend } from "@/lib/supabase/groupPredictions";
 import { listPosts } from "@/lib/supabase/groupPosts";
 import { getPointsBalance } from "@/lib/supabase/points";
-import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRacesByYear } from "@/lib/supabase/races";
+import { getDriverHeadshotsByCode, getRaceById, getRaceRoster, getRaceScheduleByYear } from "@/lib/supabase/races";
 import { getNextRace } from "@/lib/supabase/nextRace";
 import { getSession } from "@/lib/session/getSession";
 import { isF1Type, resolveModules } from "@/lib/communities";
@@ -83,7 +83,7 @@ export async function CommunityView({
   const uid = session.uid;
   if (!isUuid(id)) notFound();
 
-  const role = await getMemberRole(id, uid);
+  const [role, season] = await Promise.all([getMemberRole(id, uid), getCurrentSeason()]);
   if (!role) {
     const [preview, joinRequest, inviteState, banned] = await Promise.all([
       getGroupPreview(id),
@@ -107,7 +107,10 @@ export async function CommunityView({
     );
   }
 
-  const group = await getGroupDetail(id, uid);
+  const [group, pointsBalance] = await Promise.all([
+    getGroupDetail(id, uid, { role }),
+    getPointsBalance(uid),
+  ]);
   const modules = resolveModules(group.communityType, group.features);
   const canModerate = group.myRole === "admin" || group.myRole === "moderator";
 
@@ -121,82 +124,91 @@ export async function CommunityView({
   // race card and Apex belong on its page too.
   const wantsRace = isF1Type(group.communityType) || group.topic === "Formula 1";
 
-  const season = await getCurrentSeason();
-  const [feed, leaderboard, predictions, pointsBalance, seasonRaces, pendingRequests, stats, pulse, nextRace, callableRace, weekend, crowdVsModel] = await Promise.all([
-    listPosts(id, uid),
-    wantsLeaderboard ? getGroupLeaderboard(id, uid) : Promise.resolve([]),
-    wantsPredictions ? listPredictions(id, uid) : Promise.resolve([]),
-    getPointsBalance(uid),
-    wantsPredictions && wantsRace ? getRacesByYear(season) : Promise.resolve([]),
-    canModerate ? countPendingJoinRequests(id).catch(() => 0) : Promise.resolve(0),
-    getGroupStats(id, uid).catch(() => statsFallback(group.members.length)),
-    // Reads this member's previous visit to THIS community. Read-only: the visit is stamped when
-    // the page is left (GroupVisitBeacon), so a refresh during the visit doesn't reset the window.
-    getGroupPulse(id, uid),
-    wantsRace ? getNextRace().catch(() => null) : Promise.resolve(null),
-    // Takes with receipts: this weekend's race while calls are open, for an F1 community's composer.
-    wantsRace ? getCallableRace(season).catch(() => null) : Promise.resolve(null),
-    // The race weekend this community is living in, as on the Communities home, with "called it" counted from this
-    // community's own rounds. Decoration around the feed: a failure leaves the bar out, never the page.
-    wantsRace ? getCommunityWeekend(uid, season, undefined, { groupIds: [id] }).catch(() => null) : Promise.resolve(null),
-    // This community against the Apex model this season, for the rail's league widget.
-    wantsRace && wantsPredictions ? getCrowdVsModel([{ id, name: group.name, avatarUrl: group.avatarUrl }], season).catch(() => null) : Promise.resolve(null),
-  ]);
+  // Start all section queries in parallel immediately on the server so none waits in a waterfall,
+  // while each panel and rail widget's own <Suspense> boundary replaces its skeleton independently
+  // as its promise resolves.
+  const seasonRacesPromise = wantsRace ? getRaceScheduleByYear(season) : Promise.resolve([]);
+  const feedPromise = listPosts(id, uid, { role });
+  const leaderboardPromise = wantsLeaderboard ? getGroupLeaderboard(id, uid, { role }) : Promise.resolve([]);
+  const predictionsBundlePromise = (wantsPredictions ? listPredictions(id, uid, { role }) : Promise.resolve([])).then(async (predictions) => {
+    // Driver rosters only for races an existing prediction already references - a handful of small
+    // fetches, not the whole season, so a guess picker has real names to offer instead of free text.
+    // getRaceRoster falls back to the most recently known line-up when this specific race's own
+    // entry list or grid hasn't landed yet - see its own comment for why an empty picker here was
+    // blocking every prediction on a freshly-opened round, not just an occasional one.
+    const predictionRaceIds = [...new Set(predictions.map((p) => p.raceId))];
+    // The rail's own rounds: the open ones, soonest first, with their community trend fetched here
+    // rather than by the card after it mounts - the rail is above the fold and a request-per-card
+    // waterfall is visible as bars that appear a beat late. A trend that fails resolves to null and
+    // that card simply renders without bars.
+    const openPredictions = predictions
+      .filter((p) => p.state === "open")
+      .sort((a, b) => {
+        // Soonest deadline first. An open round always has one (an unknown deadline is closed), but
+        // sort defensively rather than assume it.
+        if (!a.lockAt) return 1;
+        if (!b.lockAt) return -1;
+        return Date.parse(a.lockAt) - Date.parse(b.lockAt);
+      })
+      .slice(0, RAIL_PREDICTION_LIMIT);
+
+    const [driversByRace, railTrends] = await Promise.all([
+      (async () => {
+        const predictionRaces = await Promise.all(predictionRaceIds.map((raceId) => getRaceById(raceId)));
+        const predictionRosters = await Promise.all(predictionRaces.map((race) => (race ? getRaceRoster(race) : [])));
+        // Current roster first, the archive for anyone that misses - the same lookup the feed's own
+        // getDriversByRace uses (see groups/page.tsx and getDriverHeadshotsByCode's own comment).
+        const headshotByCode = await getDriverHeadshotsByCode(predictionRosters.flat().map((r) => r.driver));
+        const byRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
+        predictionRaceIds.forEach((raceId, i) => {
+          byRace[raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
+        });
+        return byRace;
+      })(),
+      // One batched aggregate for every rail card, not one query chain per round.
+      getPredictionTrends(
+        openPredictions.map((p) => p.id),
+        uid,
+        { memberGroupIds: [id] },
+      ).catch(() => ({}) as Record<string, PredictionTrend>),
+    ]);
+    const railPredictions: RailPrediction[] = openPredictions.map((prediction) => ({ prediction, trend: railTrends[prediction.id] ?? null }));
+    return { predictions, driversByRace, railPredictions };
+  });
+  const statsPromise = getGroupStats(id, uid, { role }).catch(() => statsFallback(group.members.length));
+  // Reads this member's previous visit to THIS community. Read-only: the visit is stamped when
+  // the page is left (GroupVisitBeacon), so a refresh during the visit doesn't reset the window.
+  const pulsePromise = getGroupPulse(id, uid);
+  const nextRacePromise = wantsRace ? seasonRacesPromise.then((r) => getNextRace(r)).catch(() => null) : Promise.resolve(null);
+  // Takes with receipts: this weekend's race while calls are open, for an F1 community's composer.
+  const callableRacePromise = wantsRace ? getCallableRace(season).catch(() => null) : Promise.resolve(null);
+  // The race weekend this community is living in, as on the Communities home, with "called it" counted from this
+  // community's own rounds. Decoration around the feed: a failure leaves the bar out, never the page.
+  const weekendPromise = wantsRace ? getCommunityWeekend(uid, season, undefined, { groupIds: [id] }).catch(() => null) : Promise.resolve(null);
+  // This community against the Apex model this season, for the rail's league widget.
+  const crowdVsModelPromise = wantsRace && wantsPredictions ? getCrowdVsModel([{ id, name: group.name, avatarUrl: group.avatarUrl }], season).catch(() => null) : Promise.resolve(null);
 
   // Races for the prediction race picker - current season, most recent first, so the realistic
   // choice (this weekend, or one that just finished and needs resolving) is near the top. Includes
   // calendar-only placeholder rounds: createPrediction promotes one into a real `races` row the
   // first time it's picked, so a round can be set up before the pipeline has session data.
-  const races = [...seasonRaces].reverse().map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
+  const racesPromise =
+    wantsPredictions && wantsRace
+      ? seasonRacesPromise.then((seasonRaces) => [...seasonRaces].reverse().map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status })))
+      : Promise.resolve([]);
   // What createPrediction will actually accept. The composer offers only these, so it can never
   // present a round the server is going to refuse.
-  const upcomingRaces = [...seasonRaces]
-    .filter((r) => r.status !== "completed")
-    .sort((a, b) => a.round - b.round)
-    .map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status }));
+  const upcomingRacesPromise =
+    wantsPredictions && wantsRace
+      ? seasonRacesPromise.then((seasonRaces) =>
+          [...seasonRaces]
+            .filter((r) => r.status !== "completed")
+            .sort((a, b) => a.round - b.round)
+            .map((r) => ({ id: r.id, name: r.name, round: r.round, status: r.status })),
+        )
+      : Promise.resolve([]);
 
-  // Driver rosters only for races an existing prediction already references - a handful of small
-  // fetches, not the whole season, so a guess picker has real names to offer instead of free text.
-  // getRaceRoster falls back to the most recently known line-up when this specific race's own
-  // entry list or grid hasn't landed yet - see its own comment for why an empty picker here was
-  // blocking every prediction on a freshly-opened round, not just an occasional one.
-  const predictionRaceIds = [...new Set(predictions.map((p) => p.raceId))];
-  const predictionRaces = await Promise.all(predictionRaceIds.map((raceId) => getRaceById(raceId)));
-  const predictionRosters = await Promise.all(predictionRaces.map((race) => (race ? getRaceRoster(race) : [])));
-  // Current roster first, the archive for anyone that misses - the same lookup the feed's own
-  // getDriversByRace uses (see groups/page.tsx and getDriverHeadshotsByCode's own comment).
-  const headshotByCode = await getDriverHeadshotsByCode(predictionRosters.flat().map((r) => r.driver));
-  const driversByRace: Record<string, { code: string; name: string; headshotUrl: string | null }[]> = {};
-  predictionRaceIds.forEach((raceId, i) => {
-    driversByRace[raceId] = predictionRosters[i].map((r) => ({ code: r.driver, name: r.driverName, headshotUrl: headshotByCode.get(r.driver) ?? null }));
-  });
-
-  // The rail's own rounds: the open ones, soonest first, with their community trend fetched here
-  // rather than by the card after it mounts - the rail is above the fold and a request-per-card
-  // waterfall is visible as bars that appear a beat late. A trend that fails resolves to null and
-  // that card simply renders without bars.
-  const openPredictions = predictions
-    .filter((p) => p.state === "open")
-    .sort((a, b) => {
-      // Soonest deadline first. An open round always has one (an unknown deadline is closed), but
-      // sort defensively rather than assume it.
-      if (!a.lockAt) return 1;
-      if (!b.lockAt) return -1;
-      return Date.parse(a.lockAt) - Date.parse(b.lockAt);
-    })
-    .slice(0, RAIL_PREDICTION_LIMIT);
-  // One batched aggregate for every rail card, not one query chain per round.
-  const railTrends = await getPredictionTrends(
-    openPredictions.map((p) => p.id),
-    uid,
-  ).catch(() => ({}) as Record<string, PredictionTrend>);
-  const railPredictions: RailPrediction[] = openPredictions.map((prediction) => ({ prediction, trend: railTrends[prediction.id] ?? null }));
-
-  // Posts sitting in the approval queue, for the feed's moderator-only filter. Derived from the
-  // page the feed already has rather than a second query: `listPosts` returns pending rows to a
-  // moderator, so this is a count of what's genuinely visible to them on this page. It's a
-  // first-page figure and the filter itself queries the real thing.
-  const pendingPosts = canModerate ? feed.posts.filter((p) => p.status === "pending").length : undefined;
+  const pendingRequests = canModerate ? await countPendingJoinRequests(id).catch(() => 0) : undefined;
 
   return (
     // Wide enough for a real two-column workspace (content + context rail) at desktop widths, while
@@ -212,22 +224,18 @@ export async function CommunityView({
         <CommunityWorkspace
           group={group}
           myUserId={uid}
-          leaderboard={leaderboard}
-          posts={feed.posts}
-          postsCursor={feed.nextCursor}
-          predictions={predictions}
-          railPredictions={railPredictions}
-          races={races}
-          upcomingRaces={upcomingRaces}
-          callableRace={callableRace}
-          driversByRace={driversByRace}
+          leaderboard={leaderboardPromise}
+          feed={feedPromise}
+          predictionsBundle={predictionsBundlePromise}
+          races={racesPromise}
+          upcomingRaces={upcomingRacesPromise}
+          callableRace={callableRacePromise}
           pointsBalance={pointsBalance}
           memberCount={group.members.length}
-          stats={stats}
-          pulse={pulse}
-          nextRace={nextRace}
-          pendingRequests={canModerate ? pendingRequests : undefined}
-          pendingPosts={pendingPosts}
+          stats={statsPromise}
+          pulse={pulsePromise}
+          nextRace={nextRacePromise}
+          pendingRequests={pendingRequests}
           // A post permalink is a link to a conversation in the feed, so it lands on the feed
           // regardless of which tab the URL otherwise asks for - opening `?post=` on the
           // Leaderboard would show the discussion window over a panel it has nothing to do with.
@@ -235,8 +243,8 @@ export async function CommunityView({
           focusPostId={requestedPost ?? null}
           focusCommentId={requestedComment ?? null}
           isF1={wantsRace}
-          weekend={weekend}
-          crowdVsModel={crowdVsModel}
+          weekend={weekendPromise}
+          crowdVsModel={crowdVsModelPromise}
         />
       </div>
     </div>

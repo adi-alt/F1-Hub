@@ -12,8 +12,11 @@ const BATCH = 50;
  * their trend is known to be empty. Returns an id → trend map that fills in when the request lands;
  * a failed request leaves it empty, and the cards simply show no shares.
  */
-export function usePredictionTrends(rounds: readonly { id: string; entryCount: number }[]): Record<string, PredictionTrend> {
-  const [trends, setTrends] = useState<Record<string, PredictionTrend>>({});
+export function usePredictionTrends(
+  rounds: readonly { id: string; entryCount: number }[],
+  initialTrends?: Record<string, PredictionTrend>,
+): Record<string, PredictionTrend> {
+  const [trends, setTrends] = useState<Record<string, PredictionTrend>>(initialTrends ?? {});
   // A stable key, so a re-render with the same rounds doesn't refetch.
   const key = rounds
     .filter((r) => r.entryCount > 0)
@@ -24,6 +27,7 @@ export function usePredictionTrends(rounds: readonly { id: string; entryCount: n
   useEffect(() => {
     if (!key) return;
     const ids = key.split(",");
+    if (initialTrends && ids.every((id) => Object.prototype.hasOwnProperty.call(initialTrends, id))) return;
     const controller = new AbortController();
     const batches: string[][] = [];
     for (let i = 0; i < ids.length; i += BATCH) batches.push(ids.slice(i, i + BATCH));
@@ -34,10 +38,10 @@ export function usePredictionTrends(rounds: readonly { id: string; entryCount: n
           .then((body) => body.trends),
       ),
     )
-      .then((parts) => setTrends(Object.assign({}, ...parts)))
+      .then((parts) => setTrends((prev) => Object.assign({}, prev, ...parts)))
       .catch(() => {});
     return () => controller.abort();
-  }, [key]);
+  }, [key, initialTrends]);
 
-  return trends;
+  return initialTrends ? { ...initialTrends, ...trends } : trends;
 }

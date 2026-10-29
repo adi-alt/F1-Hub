@@ -129,23 +129,25 @@ export const MAX_COMMENT_CHARS = 1000;
 type ProfileLite = { id: string; display_name: string | null; username: string | null; avatar?: AvatarConfig | null };
 async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>> {
   if (userIds.length === 0) return new Map();
-  const [{ data, error }, photos] = await Promise.all([
-    queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds)),
-    profileAvatars(userIds),
-  ]);
+  // Built avatars (profiles.avatar, 20261030_profile_avatar_config.sql) are read in the same query; a database without
+  // that column yet falls back to the base columns so it costs only the avatars (the default ones show instead), never the posts.
+  const primary = await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username, avatar").in("id", userIds));
+  if (!primary.error) {
+    return new Map(
+      (primary.data ?? []).map((p) => [
+        p.id as string,
+        {
+          id: p.id as string,
+          display_name: (p.display_name as string | null) ?? null,
+          username: (p.username as string | null) ?? null,
+          avatar: parseAvatar(p.avatar),
+        },
+      ]),
+    );
+  }
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("profiles").select("id, display_name, username").in("id", userIds));
   if (error) throw new Error(`profilesById: ${error.message}`);
-  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar: photos.get(p.id as string) ?? null }]));
-}
-
-/** Built avatars (profiles.avatar, 20261030_profile_avatar_config.sql), read on their own so a database without that
- * column yet - or any failure here - costs only the avatars (the default ones show instead), never the posts. */
-async function profileAvatars(userIds: string[]): Promise<Map<string, AvatarConfig>> {
-  const { data, error } = await supabaseAdmin.from("profiles").select("id, avatar").in("id", userIds);
-  if (error) return new Map();
-  return new Map((data ?? []).flatMap((p) => {
-    const avatar = parseAvatar(p.avatar);
-    return avatar ? [[p.id as string, avatar] as const] : [];
-  }));
+  return new Map((data ?? []).map((p) => [p.id as string, { ...(p as ProfileLite), avatar: null }]));
 }
 function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
@@ -313,7 +315,7 @@ export async function listPosts(
   uid: string,
   opts: ListPostsOptions = {},
 ): Promise<{ posts: GroupPost[]; nextCursor: string | null }> {
-  const role = await requireCanViewPost(groupId, uid);
+  const role = opts.role !== undefined ? opts.role : await requireCanViewPost(groupId, uid);
   const canModerate = role === "admin" || role === "moderator";
   const limit = opts.limit ?? GROUP_PAGE_SIZE;
   const sort: PostSort = opts.sort ?? "new";
@@ -537,6 +539,8 @@ export type ListPostsOptions = {
   authorId?: string;
   /** The moderation queue. Ignored for anyone who can't moderate this community. */
   pendingOnly?: boolean;
+  /** Optional pre-verified role for `uid` in `groupId` so a caller that already checked membership skips a second lookup. */
+  role?: GroupRole | null;
 };
 
 /** How many recent posts a "top"/"most discussed" page ranks over. Large enough that the top of a
@@ -608,11 +612,14 @@ export async function getJoinedGroupIds(uid: string): Promise<string[]> {
  * No engagement-based ranking in any of the three - all three are plain chronological, since
  * there's no real signal yet (a handful of groups, most with a handful of posts) to rank
  * meaningfully on. */
-export async function listFeedPosts(uid: string, opts: { cursor?: string; limit?: number; feedType?: FeedType } = {}): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
+export async function listFeedPosts(
+  uid: string,
+  opts: { cursor?: string; limit?: number; feedType?: FeedType; joinedGroupIds?: string[] } = {},
+): Promise<{ posts: FeedPost[]; nextCursor: string | null }> {
   const feedType = opts.feedType ?? "following";
   const limit = opts.limit ?? 15;
 
-  const joinedGroupIds = await getJoinedGroupIds(uid);
+  const joinedGroupIds = opts.joinedGroupIds ?? (await getJoinedGroupIds(uid));
 
   let query = supabaseAdmin.from("group_posts").select("*").eq("status", "published").order("created_at", { ascending: false }).limit(limit + 1);
 

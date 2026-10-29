@@ -5,11 +5,11 @@
 // not folded into lib/supabase/* — same role src/lib/highlights.ts and predictionAccuracy.ts
 // already have: a derived view-model layer on top of the data layer, not a data source itself.
 
-import { getApprovedRacePhotos } from "@/lib/supabase/racePhotos";
-import { getArchiveCircuit, getArchiveDriver, getArchiveDriverIdsByCode, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
+import { getApprovedRacePhotosByRaceIds } from "@/lib/supabase/racePhotos";
+import { getArchiveCircuit, getArchiveDriver, getArchiveDriverIdsByCode, getArchiveRacePhotosByCircuitId, getArchiveRacesByCircuitId, getArchiveTeam } from "@/lib/supabase/archive";
 import type { CircuitTrackMap } from "@/lib/supabase/archive";
 import { getAllCurrentTeams, getCurrentDriver } from "@/lib/supabase/media";
-import { getRacesByCircuit, getRacesByYear } from "@/lib/supabase/races";
+import { getRacePhotosByCircuit, getRacesByYear } from "@/lib/supabase/races";
 import { archiveCircuitHref, archiveDriverHref, archiveTeamHref } from "@/lib/routes";
 import { archiveSlugForCurrentTeam } from "@/lib/teamSlug";
 import type { RaceDoc } from "@/lib/types/race";
@@ -480,13 +480,20 @@ export async function getRecentCircuitPhotos(
 ): Promise<RecentCircuitPhoto[]> {
   const earliestYear = year - 10;
   const [archiveRaces, currentRaces] = await Promise.all([
-    circuitId ? getArchiveRacesByCircuitId(circuitId) : Promise.resolve([]),
-    currentSeasonCircuit ? getRacesByCircuit(currentSeasonCircuit) : Promise.resolve([]),
+    circuitId ? getArchiveRacePhotosByCircuitId(circuitId) : Promise.resolve([]),
+    currentSeasonCircuit ? getRacePhotosByCircuit(currentSeasonCircuit) : Promise.resolve([]),
   ]);
 
   // Photos an admin approved for this circuit's races come first (audit R-04): they're the ones a person has
   // checked show this place. The Commons categories below fill in only while too few are approved.
-  const approved = (await Promise.all(currentRaces.map(async (r) => (await getApprovedRacePhotos(r.id).catch(() => [])).map((p) => ({ url: p.imageUrl, year: r.year }))))).flat();
+  const yearByRaceId = new Map(currentRaces.map((r) => [r.id, r.year]));
+  const approvedPhotos = await getApprovedRacePhotosByRaceIds(currentRaces.map((r) => r.id)).catch(() => []);
+  const approved = approvedPhotos
+    .map((p) => {
+      const raceYear = yearByRaceId.get(p.raceId);
+      return raceYear !== undefined ? { url: p.imageUrl, year: raceYear } : null;
+    })
+    .filter((p): p is { url: string; year: number } => p !== null);
   if (approved.length >= MIN_PHOTOS_FOR_ROTATION) return dedupeSortedByYear(approved);
 
   const recent = dedupeSortedByYear([

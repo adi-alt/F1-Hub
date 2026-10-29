@@ -1,10 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { ChevronRight, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { formatCountdown } from "@/lib/countdown";
@@ -16,8 +17,9 @@ import type { GroupMember, LeaderboardRow } from "@/lib/supabase/groups";
 import type { GroupPulse, GroupStats } from "@/lib/supabase/groupStats";
 import type { NextRaceSummary } from "@/lib/supabase/nextRace";
 import { ApexWidget } from "../../components/ApexWidget";
-import { RaceWeekend } from "../../components/GroupsRightSidebar";
+import { ActivePredictionsWidgetSkeleton, ApexWidgetSkeleton, RaceWeekend, RaceWeekendWidgetSkeleton } from "../../components/GroupsRightSidebar";
 import { PredictionTrendBars } from "../../components/post/PredictionTrendBars";
+import { useProgressive, useStreamed, type Streamable } from "../../components/useStreamed";
 
 /** One open round plus the aggregate that was fetched for it server-side, so the rail draws its
  * bars on first paint instead of firing a request per card after mount. */
@@ -53,15 +55,15 @@ export function CommunityRightRail({
   canInvite = false,
   onOpenTab,
 }: {
-  stats: GroupStats;
-  pulse: GroupPulse;
-  race: NextRaceSummary;
-  predictions: RailPrediction[];
-  leaderboard: LeaderboardRow[];
+  stats: Streamable<GroupStats>;
+  pulse: Streamable<GroupPulse>;
+  race: Streamable<NextRaceSummary>;
+  predictions: Streamable<RailPrediction[]>;
+  leaderboard: Streamable<LeaderboardRow[]>;
   /** For the table's photos: leaderboard rows carry names, the member list carries faces. */
   members: GroupMember[];
   myUserId: string;
-  crowdVsModel: CrowdVsModel | null;
+  crowdVsModel: Streamable<CrowdVsModel | null>;
   showRace: boolean;
   showPredictions: boolean;
   showLeaderboard: boolean;
@@ -74,36 +76,115 @@ export function CommunityRightRail({
     <div className="space-y-3">
       {showRace && (
         <div className={`overflow-hidden ${PANEL}`}>
-          <RaceWeekend race={race} />
+          <Suspense fallback={<RaceWeekendWidgetSkeleton />}>
+            <StreamedRaceWeekend race={race} />
+          </Suspense>
         </div>
       )}
       {showRace && (
         <div className={`p-4 ${PANEL}`}>
-          <ApexWidget location={race?.circuit ?? null} year={race?.year ?? null} />
+          <Suspense fallback={<ApexWidgetSkeleton />}>
+            <StreamedApexWidget race={race} />
+          </Suspense>
         </div>
       )}
-      {showLeaderboard && leaderboard.length > 0 && (
+      {showLeaderboard ? (
         <div className={`p-4 ${PANEL}`}>
-          <LeagueTable rows={leaderboard} members={members} myUserId={myUserId} crowdVsModel={crowdVsModel} onOpen={() => onOpenTab("leaderboard")} />
+          <Suspense fallback={<LeagueTableWidgetSkeleton />}>
+            <StreamedLeagueOrPeople
+              leaderboard={leaderboard}
+              members={members}
+              myUserId={myUserId}
+              crowdVsModel={crowdVsModel}
+              canInvite={canInvite}
+              onOpenTab={onOpenTab}
+            />
+          </Suspense>
         </div>
-      )}
+      ) : null}
       {showPredictions && (
         <div className={`p-4 ${PANEL}`}>
-          <OpenRounds predictions={predictions} onOpen={() => onOpenTab("predictions")} />
+          <Suspense fallback={<ActivePredictionsWidgetSkeleton />}>
+            <StreamedOpenRounds predictions={predictions} onOpen={() => onOpenTab("predictions")} />
+          </Suspense>
         </div>
       )}
-      {/* Without a league table (which already shows the faces), the rail shows who's here, and a way to ask more in. */}
-      {!(showLeaderboard && leaderboard.length > 0) && (
+      {!showLeaderboard && (
         <div className={`p-4 ${PANEL}`}>
           <People members={members} canInvite={canInvite} onOpen={() => onOpenTab("members")} onInvite={() => onOpenTab("invite")} />
         </div>
       )}
       {/* Only when there is something new: a widget that says "nothing happened" is space taken for nothing. */}
-      {hasNews(pulse, stats) && (
-        <div className={`p-4 ${PANEL}`}>
-          <SinceLastVisit pulse={pulse} stats={stats} onOpen={() => onOpenTab("feed")} />
-        </div>
-      )}
+      <Suspense fallback={null}>
+        <StreamedSinceLastVisit pulse={pulse} stats={stats} onOpen={() => onOpenTab("feed")} />
+      </Suspense>
+    </div>
+  );
+}
+
+function StreamedRaceWeekend({ race }: { race: Streamable<NextRaceSummary> }) {
+  const resolved = useStreamed(race);
+  return <RaceWeekend race={resolved} />;
+}
+
+function StreamedApexWidget({ race }: { race: Streamable<NextRaceSummary> }) {
+  const resolved = useStreamed(race);
+  return <ApexWidget location={resolved?.circuit ?? null} year={resolved?.year ?? null} />;
+}
+
+function StreamedLeagueOrPeople({
+  leaderboard,
+  members,
+  myUserId,
+  crowdVsModel,
+  canInvite,
+  onOpenTab,
+}: {
+  leaderboard: Streamable<LeaderboardRow[]>;
+  members: GroupMember[];
+  myUserId: string;
+  crowdVsModel: Streamable<CrowdVsModel | null>;
+  canInvite: boolean;
+  onOpenTab: (tab: RailTab) => void;
+}) {
+  const rows = useStreamed(leaderboard);
+  const { data: resolvedCrowd } = useProgressive<CrowdVsModel | null>(crowdVsModel, null);
+  if (rows.length > 0) {
+    return <LeagueTable rows={rows} members={members} myUserId={myUserId} crowdVsModel={resolvedCrowd} onOpen={() => onOpenTab("leaderboard")} />;
+  }
+  return <People members={members} canInvite={canInvite} onOpen={() => onOpenTab("members")} onInvite={() => onOpenTab("invite")} />;
+}
+
+function StreamedOpenRounds({ predictions, onOpen }: { predictions: Streamable<RailPrediction[]>; onOpen: () => void }) {
+  const resolved = useStreamed(predictions);
+  return <OpenRounds predictions={resolved} onOpen={onOpen} />;
+}
+
+function StreamedSinceLastVisit({ pulse, stats, onOpen }: { pulse: Streamable<GroupPulse>; stats: Streamable<GroupStats>; onOpen: () => void }) {
+  const resolvedPulse = useStreamed(pulse);
+  const resolvedStats = useStreamed(stats);
+  if (!hasNews(resolvedPulse, resolvedStats)) return null;
+  return (
+    <div className={`p-4 ${PANEL}`}>
+      <SinceLastVisit pulse={resolvedPulse} stats={resolvedStats} onOpen={onOpen} />
+    </div>
+  );
+}
+
+function LeagueTableWidgetSkeleton() {
+  return (
+    <div role="status" aria-label="Loading league table">
+      <Skeleton shape="block" className="h-3.5 w-28" />
+      <div className="mt-3 space-y-2.5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2.5">
+            <Skeleton shape="block" className="h-3 w-4" />
+            <Skeleton shape="circle" className="size-6 shrink-0" />
+            <Skeleton shape="block" className="h-3.5 flex-1" />
+            <Skeleton shape="block" className="h-3.5 w-10" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
