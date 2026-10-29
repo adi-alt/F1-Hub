@@ -60,6 +60,7 @@ export function PostCard({
   const { saved, saving, toggle } = useOptimisticSave(`/api/posts/${post.id}/save`, post.saved ?? false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [commentCount, setCommentCount] = useState(post.commentCount);
+  const [answered, setAnswered] = useState(!!post.answered);
   const [shareLabel, setShareLabel] = useState("Share");
   const status = post.status ?? "published";
   const roleLabel = post.authorRole && post.authorRole !== "member" ? ROLE_LABEL[post.authorRole] : undefined;
@@ -345,10 +346,11 @@ export function PostCard({
                 rows uploaded before it existed, which have a URL and nothing else. */}
             {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
             {post.call && <CallChip call={post.call} />}
-            {kindChip && (
-              <Badge tone="neutral" className="mt-2">
-                {kindChip}
-              </Badge>
+            {(kindChip || answered) && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {kindChip && <Badge tone="neutral">{kindChip}</Badge>}
+                {answered && <Badge tone="success">✓ Answered</Badge>}
+              </div>
             )}
           </div>
 
@@ -382,6 +384,7 @@ export function PostCard({
           focusCommentId={null}
           onClose={() => setDetailOpen(false)}
           onCountChange={setCommentCount}
+          onAnsweredChange={setAnswered}
         />
       )}
     </article>

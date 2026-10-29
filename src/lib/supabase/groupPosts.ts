@@ -54,6 +54,8 @@ export type GroupPost = {
   saved: boolean;
   commentCount: number;
   commentsLocked: boolean;
+  /** Whether a comment on this question post has been marked as the accepted answer. */
+  answered?: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -132,6 +134,8 @@ export type FeedPost = {
   saved: boolean;
   commentCount: number;
   commentsLocked: boolean;
+  /** Whether a comment on this question post has been marked as the accepted answer. */
+  answered?: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -189,6 +193,18 @@ async function profilesById(userIds: string[]): Promise<Map<string, ProfileLite>
 }
 function nameFor(profile: ProfileLite | undefined, userId: string): string {
   return profile?.display_name ?? profile?.username ?? `User ${userId.slice(0, 6)}`;
+}
+
+async function selectCommentsForPostSummary(postIds: string[]) {
+  if (postIds.length === 0) return { data: [] as Record<string, unknown>[], error: null };
+  const primary = await queryWithRetry(() =>
+    supabaseAdmin.from("group_post_comments").select("post_id, accepted_at").in("post_id", postIds).is("deleted_at", null),
+  );
+  if (!primary.error) return { data: (primary.data ?? []) as Record<string, unknown>[], error: null };
+  const fallback = await queryWithRetry(() =>
+    supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null),
+  );
+  return { data: (fallback.data ?? []) as Record<string, unknown>[], error: fallback.error };
 }
 
 /**
@@ -421,7 +437,7 @@ export async function listPosts(
   const authorIds = [...new Set(enriching.map((p) => p.user_id as string))];
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: members, error: membersError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null)),
+    selectCommentsForPostSummary(postIds),
     queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role").eq("group_id", groupId).in("user_id", authorIds)),
     queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).in("post_id", postIds)),
     profilesById(authorIds),
@@ -435,7 +451,12 @@ export async function listPosts(
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
   const commentCounts = new Map<string, number>();
-  for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
+  const answeredPostIds = new Set<string>();
+  for (const c of comments ?? []) {
+    const pid = c.post_id as string;
+    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
+    if (c.accepted_at) answeredPostIds.add(pid);
+  }
 
   const mapped: GroupPost[] = enriching.map((p) => ({
     id: p.id as string,
@@ -459,6 +480,7 @@ export async function listPosts(
     saved: savedPostIds.has(p.id as string),
     commentCount: commentCounts.get(p.id as string) ?? 0,
     commentsLocked: !!p.comments_locked_at,
+    answered: answeredPostIds.has(p.id as string),
   }));
 
   if (ranked) {
@@ -686,7 +708,7 @@ export async function listFeedPosts(
 
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: groupsData, error: groupsError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").in("post_id", postIds)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null)),
+    selectCommentsForPostSummary(postIds),
     postGroupIds.length > 0 ? queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", postGroupIds)) : Promise.resolve({ data: [], error: null }),
     queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("user_id", uid).in("post_id", postIds)),
     profilesById(authorIds),
@@ -700,7 +722,12 @@ export async function listFeedPosts(
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
   const commentCounts = new Map<string, number>();
-  for (const c of comments ?? []) commentCounts.set(c.post_id as string, (commentCounts.get(c.post_id as string) ?? 0) + 1);
+  const answeredPostIds = new Set<string>();
+  for (const c of comments ?? []) {
+    const pid = c.post_id as string;
+    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
+    if (c.accepted_at) answeredPostIds.add(pid);
+  }
 
   const posts: FeedPost[] = page.map((p) => {
     const groupId = (p.group_id as string | null) ?? null;
@@ -727,6 +754,7 @@ export async function listFeedPosts(
       saved: savedPostIds.has(p.id as string),
       commentCount: commentCounts.get(p.id as string) ?? 0,
       commentsLocked: !!p.comments_locked_at,
+      answered: answeredPostIds.has(p.id as string),
     };
   });
   return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };

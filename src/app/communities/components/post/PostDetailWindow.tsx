@@ -44,6 +44,7 @@ export function PostDetailWindow({
   focusCommentId,
   onClose,
   onCountChange,
+  onAnsweredChange,
 }: {
   post: PostCardData;
   score: number;
@@ -60,6 +61,7 @@ export function PostDetailWindow({
   focusCommentId: string | null;
   onClose: () => void;
   onCountChange?: (count: number) => void;
+  onAnsweredChange?: (answered: boolean) => void;
 }) {
   const { comments, tree, sort, setSort, add, togglePin, toggleAccept, toggleReaction, discard, reload, error, loading } = useComments(post.id, onCountChange);
   const [visibleThreads, setVisibleThreads] = useState(THREADS_PER_PAGE);
@@ -318,7 +320,10 @@ export function PostDetailWindow({
                 onReply={add}
                 onDiscard={discard}
                 onTogglePin={togglePin}
-                onToggleAccept={toggleAccept}
+                onToggleAccept={async (commentId, accepted) => {
+                  onAnsweredChange?.(accepted);
+                  await toggleAccept(commentId, accepted);
+                }}
                 onToggleReaction={toggleReaction}
                 commentsLocked={commentsLocked}
                 highlightedCommentId={focusCommentId}
