@@ -925,6 +925,7 @@ export async function listFeedPosts(
         score: p.score,
         myVote: p.myVote,
         saved: true,
+        pinned: p.pinned,
         commentCount: p.commentCount,
         commentsLocked: p.commentsLocked,
         answered: p.answered,
