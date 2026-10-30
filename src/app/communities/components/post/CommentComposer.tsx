@@ -57,6 +57,7 @@ export function CommentComposer({
   allowMedia,
   quoteText,
   onQuoteConsumed,
+  groupId,
 }: {
   onSubmit: (content: string, mediaUrl?: string | null) => Promise<boolean>;
   placeholder?: string;
@@ -74,6 +75,8 @@ export function CommentComposer({
   /** Optional markdown quote block (`> @Author: ...`) to append and focus when clicked from a comment. */
   quoteText?: string | null;
   onQuoteConsumed?: () => void;
+  /** Community the discussion belongs to, for member autocomplete scoping. */
+  groupId?: string | null;
 }) {
   const { user, avatar } = useAuth();
   const mediaEnabled = allowMedia ?? (submitLabel !== "Save" && submitLabel !== "Report");
@@ -86,6 +89,7 @@ export function CommentComposer({
   const [showEmoji, setShowEmoji] = useState(false);
   const [showGif, setShowGif] = useState(false);
   const [mentionState, setMentionState] = useState<{ query: string; startIndex: number } | null>(null);
+  const justSelectedRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const draftLoaded = useRef(false);
@@ -210,6 +214,10 @@ export function CommentComposer({
     const next = `${before}@${username} ${after}`.slice(0, MAX_CHARS);
     setContent(next);
     setMentionState(null);
+    justSelectedRef.current = true;
+    setTimeout(() => {
+      justSelectedRef.current = false;
+    }, 300);
     requestAnimationFrame(() => {
       if (el) {
         el.focus();
@@ -252,10 +260,17 @@ export function CommentComposer({
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (mentionState) {
       if (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (justSelectedRef.current && (e.key === "Enter" || e.key === "Tab")) {
+      e.preventDefault();
+      return;
+    }
+    // Cmd+Enter or Ctrl+Enter submits
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       void submit();
     }
@@ -389,6 +404,7 @@ export function CommentComposer({
       {mentionState && (
         <MentionAutocomplete
           query={mentionState.query}
+          groupId={groupId}
           onSelect={handleSelectMention}
           onClose={() => setMentionState(null)}
         />
@@ -405,7 +421,14 @@ export function CommentComposer({
               Cancel
             </Button>
           )}
-          <Button variant="primary" size="sm" onClick={() => void submit()} disabled={!canSubmit} loading={posting}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void submit()}
+            disabled={!canSubmit}
+            loading={posting}
+            title="Post comment (Cmd+Enter or Ctrl+Enter)"
+          >
             {variant === "inline" ? "Post" : submitLabel}
           </Button>
         </div>

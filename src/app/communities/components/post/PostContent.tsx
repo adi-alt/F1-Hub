@@ -5,7 +5,7 @@ import { firstUrlIn, safeHttpUrl } from "@/lib/linkPreview";
 import { LinkPreview } from "./LinkPreview";
 
 const TRUNCATE_AT = 500;
-const URL_PATTERN = /(https?:\/\/[^\s<>"']+)/gi;
+const TOKEN_PATTERN = /(https?:\/\/[^\s<>"']+|@[a-zA-Z0-9_.-]+)/gi;
 
 /** The complete post, not a preview - the whole point of removing "View in group ->" is that the
  * feed itself is where a post gets read. Only genuinely long posts get a "Show more" expansion
@@ -41,15 +41,26 @@ export function PostContent({ title, content }: { title: string | null; content:
 }
 
 /**
- * Turns bare URLs in post text into real links.
+ * Turns bare URLs in post text into real links, and wraps `@username` mentions
+ * in styled rounded-rectangle tags.
  *
- * Every candidate goes through the same safeHttpUrl check the server uses, so a `javascript:` or
+ * Every URL candidate goes through the same safeHttpUrl check the server uses, so a `javascript:` or
  * `data:` URL is never given an href - it stays plain text. Everything else is rendered by React as
  * text, so there is no path here from post content to markup.
  */
 function linkify(text: string) {
-  return text.split(URL_PATTERN).map((part, i) => {
+  return text.split(TOKEN_PATTERN).map((part, i) => {
     if (i % 2 === 0) return <Fragment key={i}>{part}</Fragment>;
+    if (part.startsWith("@")) {
+      return (
+        <span
+          key={i}
+          className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-control bg-white/[0.08] hover:bg-white/[0.12] border border-white/12 text-primary font-medium text-body-sm align-baseline transition-colors select-none"
+        >
+          {part}
+        </span>
+      );
+    }
     const trimmed = part.replace(/[.,;:!?)\]}]+$/, "");
     const trailing = part.slice(trimmed.length);
     if (!safeHttpUrl(trimmed)) return <Fragment key={i}>{part}</Fragment>;

@@ -41,6 +41,7 @@ export function CommentTree({
   /** Called when a deep thread wants to open in the side panel, focused on that comment. Absent in
    * the drawer itself, where there's nowhere further to escalate to - it flattens instead. */
   onOpenConversation,
+  groupId,
 }: {
   roots: LocalComment[];
   childrenOf: Map<string, LocalComment[]>;
@@ -54,6 +55,7 @@ export function CommentTree({
   onShareComment?: (id: string) => Promise<boolean>;
   highlightedCommentId?: string | null;
   onOpenConversation?: (commentId: string) => void;
+  groupId?: string | null;
 }) {
   return (
     <div className="space-y-4">
@@ -73,6 +75,7 @@ export function CommentTree({
           onShareComment={onShareComment}
           highlightedCommentId={highlightedCommentId}
           onOpenConversation={onOpenConversation}
+          groupId={groupId}
         />
       ))}
     </div>
@@ -93,6 +96,7 @@ function CommentNode({
   onShareComment,
   highlightedCommentId,
   onOpenConversation,
+  groupId,
 }: {
   comment: LocalComment;
   childrenOf: Map<string, LocalComment[]>;
@@ -107,6 +111,7 @@ function CommentNode({
   onShareComment?: (id: string) => Promise<boolean>;
   highlightedCommentId?: string | null;
   onOpenConversation?: (commentId: string) => void;
+  groupId?: string | null;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${postId}/comments/${comment.id}/vote`, comment.score, comment.myVote);
   const { user, avatar: myAvatar } = useAuth();
@@ -231,6 +236,7 @@ function CommentNode({
       onShareComment={onShareComment}
       highlightedCommentId={highlightedCommentId}
       onOpenConversation={onOpenConversation}
+      groupId={groupId}
     />
   ));
 
@@ -337,6 +343,7 @@ function CommentNode({
                       onCancel={() => setEditing(false)}
                       onSubmit={saveEdit}
                       placeholder="Edit your comment..."
+                      groupId={groupId}
                     />
                   </div>
                 ) : (
@@ -450,6 +457,7 @@ function CommentNode({
                         return ok;
                       }}
                       placeholder={`Reply to ${comment.authorName}...`}
+                      groupId={groupId}
                     />
                   </div>
                 )}
@@ -543,7 +551,10 @@ function renderRichTokens(text: string) {
     if (i % 2 === 0) return <Fragment key={i}>{part}</Fragment>;
     if (part.startsWith("@")) {
       return (
-        <span key={i} className="font-medium text-brand-text">
+        <span
+          key={i}
+          className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded-control bg-white/[0.08] hover:bg-white/[0.12] border border-white/12 text-primary font-medium text-caption align-baseline transition-colors select-none"
+        >
           {part}
         </span>
       );

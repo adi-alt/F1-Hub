@@ -181,6 +181,7 @@ export function PostComposer({
   const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const durationMenuRef = useRef<HTMLDivElement>(null);
   const [mentionState, setMentionState] = useState<{ query: string; startIndex: number } | null>(null);
+  const justSelectedRef = useRef(false);
   const validPollOptions = pollDraft?.options.map((o) => o.trim()).filter(Boolean) ?? [];
   const pollIncomplete = pollOpen && validPollOptions.length < 2;
 
@@ -444,21 +445,36 @@ export function PostComposer({
     const next = e.target.value;
     setContent(next);
     const pos = e.target.selectionStart ?? next.length;
-    setMentionState(checkMention(next, pos));
+    // Mention autocomplete only activates when posting in a community
+    if (targetGroupId) {
+      setMentionState(checkMention(next, pos));
+    } else {
+      setMentionState(null);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (mentionState) {
       if (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
+    }
+    if (justSelectedRef.current && (e.key === "Enter" || e.key === "Tab")) {
+      e.preventDefault();
+      return;
     }
   }
 
   function handleKeyUp(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       const pos = e.currentTarget.selectionStart ?? content.length;
-      setMentionState(checkMention(content, pos));
+      if (targetGroupId) {
+        setMentionState(checkMention(content, pos));
+      } else {
+        setMentionState(null);
+      }
     }
   }
 
@@ -471,6 +487,10 @@ export function PostComposer({
     const next = `${before}@${username} ${after}`.slice(0, 2000);
     setContent(next);
     setMentionState(null);
+    justSelectedRef.current = true;
+    setTimeout(() => {
+      justSelectedRef.current = false;
+    }, 300);
     requestAnimationFrame(() => {
       if (el) {
         el.focus();
@@ -616,9 +636,10 @@ export function PostComposer({
             </div>
           </div>
 
-          {mentionState && (
+          {mentionState && targetGroupId && (
             <MentionAutocomplete
               query={mentionState.query}
+              groupId={targetGroupId}
               onSelect={handleSelectMention}
               onClose={() => setMentionState(null)}
             />

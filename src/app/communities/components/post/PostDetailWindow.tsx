@@ -145,6 +145,7 @@ export function PostDetailWindow({
             <CommentComposer
               variant="inline"
               draftKey={`comment:${post.id}:${focused?.id ?? "root"}`}
+              groupId={post.groupId}
               onSubmit={(content, mediaUrl) => add(content, focused ? focused.id : null, mediaUrl)}
               placeholder={focused ? `Reply to ${focused.authorName}...` : "Write a comment..."}
             />
@@ -362,6 +363,7 @@ export function PostDetailWindow({
                 roots={roots}
                 childrenOf={activeChildrenOf}
                 postId={post.id}
+                groupId={post.groupId}
                 onReply={add}
                 onDiscard={discard}
                 onTogglePin={togglePin}
