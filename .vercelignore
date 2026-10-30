@@ -2,3 +2,10 @@ pipeline/
 .venv/
 *.sqlite
 .git/
+.claude/
+.next/
+node_modules/
+test-results/
+f1_cache/
+.env*
+!.env.example
