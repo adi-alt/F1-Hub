@@ -7,6 +7,6 @@ import { createBrowserClient } from "@supabase/ssr";
 // same session straight off the request — no idToken-style manual passing needed, unlike the old
 // Firebase setup this replaces.
 export const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co",
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || "placeholder-publishable-key",
 );

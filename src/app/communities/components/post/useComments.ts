@@ -118,10 +118,19 @@ export function useComments(
   onCountChange?: (count: number) => void,
   currentUser?: CurrentUserSummary,
 ) {
-  const userRef = useRef(currentUser);
+  const effectiveUid = currentUser?.uid ?? "";
+  const effectiveName = currentUser?.displayName || "You";
+  const effectiveAvatar = currentUser?.avatar ?? null;
+
+  const userRef = useRef(effectiveUid);
+  const nameRef = useRef(effectiveName);
+  const avatarRef = useRef(effectiveAvatar);
+
   useEffect(() => {
-    userRef.current = currentUser;
-  }, [currentUser]);
+    userRef.current = effectiveUid;
+    nameRef.current = effectiveName;
+    avatarRef.current = effectiveAvatar;
+  }, [effectiveUid, effectiveName, effectiveAvatar]);
 
   const [comments, setComments] = useState<LocalComment[] | null>(null);
   const [sort, setSort] = useState<CommentSort>("top");
@@ -181,9 +190,9 @@ export function useComments(
       const optimistic: LocalComment = {
         id: tempId,
         postId,
-        userId: userRef.current?.uid ?? "",
-        authorName: userRef.current?.displayName || "You",
-        authorAvatar: userRef.current?.avatar ?? null,
+        userId: userRef.current || "",
+        authorName: nameRef.current || "You",
+        authorAvatar: avatarRef.current ?? null,
         content,
         mediaUrl: mediaUrl ?? null,
         parentCommentId,
@@ -215,8 +224,13 @@ export function useComments(
       }
 
       const body = (await res.json().catch(() => null)) as { id?: string } | null;
+      const realId = body?.id;
       setComments((prev) => {
-        const next = (prev ?? []).map((c) => (c.id === tempId ? { ...c, id: body?.id ?? c.id, pending: false } : c));
+        const next = (prev ?? []).map((c) => {
+          if (c.id === tempId) return { ...c, id: realId ?? c.id, pending: false };
+          if (realId && c.parentCommentId === tempId) return { ...c, parentCommentId: realId };
+          return c;
+        });
         commentsRef.current = next;
         return next;
       });
