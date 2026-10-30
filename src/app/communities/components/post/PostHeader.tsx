@@ -64,7 +64,7 @@ export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "po
           }}
           aria-expanded={open}
           aria-label={`About ${post.authorName}`}
-          className="flex shrink-0 rounded-full transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          className="flex min-h-6 min-w-6 shrink-0 rounded-full transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
         >
           <PersonAvatar id={post.userId} avatar={resolvedAvatar} size={size} />
         </button>
@@ -76,13 +76,12 @@ export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "po
   return (
     <span className="relative shrink-0" style={{ width: size, height: size }}>
       {photo}
-      <Link
-        href={groupHref(post.groupId)}
-        aria-label={post.groupName ?? "Community"}
-        className="absolute -bottom-1 -right-1 rounded-full ring-2 ring-surface-0 transition-opacity duration-fast hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-1 -right-1 rounded-full ring-2 ring-surface-0"
       >
         <EntityAvatar imageUrl={post.groupAvatarUrl ?? null} name={post.groupName ?? "Community"} seed={post.groupId} size={badge} />
-      </Link>
+      </span>
     </span>
   );
 }

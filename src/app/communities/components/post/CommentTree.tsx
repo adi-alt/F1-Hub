@@ -255,7 +255,7 @@ function CommentNode({
                   }}
                   aria-expanded={open}
                   aria-label={`About ${comment.authorName}`}
-                  className="rounded-full transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  className="flex min-h-6 min-w-6 shrink-0 rounded-full transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                 >
                   <PersonAvatar id={comment.userId || (isMe ? (user?.uid ?? "") : "") || comment.authorName} avatar={avatar} size={28} />
                 </button>
