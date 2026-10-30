@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CommentReactionEmoji, CommentReactionSummary, PostComment } from "@/lib/supabase/groupPosts";
+import type { AvatarConfig } from "@/lib/avatar";
+
+export type CurrentUserSummary = { uid: string; displayName?: string | null; avatar?: AvatarConfig | null } | null;
 
 export type CommentSort = "top" | "newest" | "oldest";
 export type CommentFilter = "all" | "op" | "media";
@@ -110,7 +113,16 @@ export function countDescendants(id: string, childrenOf: Map<string, LocalCommen
  * Adding a comment is optimistic: it appears instantly, reconciles to the server's real row on
  * success, and on failure stays visible and marked rather than vanishing with the user's text.
  */
-export function useComments(postId: string, onCountChange?: (count: number) => void) {
+export function useComments(
+  postId: string,
+  onCountChange?: (count: number) => void,
+  currentUser?: CurrentUserSummary,
+) {
+  const userRef = useRef(currentUser);
+  useEffect(() => {
+    userRef.current = currentUser;
+  }, [currentUser]);
+
   const [comments, setComments] = useState<LocalComment[] | null>(null);
   const [sort, setSort] = useState<CommentSort>("top");
   const [error, setError] = useState(false);
@@ -169,9 +181,9 @@ export function useComments(postId: string, onCountChange?: (count: number) => v
       const optimistic: LocalComment = {
         id: tempId,
         postId,
-        userId: "",
-        authorName: "You",
-        authorAvatar: null,
+        userId: userRef.current?.uid ?? "",
+        authorName: userRef.current?.displayName || "You",
+        authorAvatar: userRef.current?.avatar ?? null,
         content,
         mediaUrl: mediaUrl ?? null,
         parentCommentId,

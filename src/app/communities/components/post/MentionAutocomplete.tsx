@@ -54,17 +54,25 @@ export function MentionAutocomplete({
       if (displayedCandidates.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         setActiveIndex((i) => (i + 1) % displayedCandidates.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         setActiveIndex((i) => (i - 1 + displayedCandidates.length) % displayedCandidates.length);
       } else if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         if (displayedCandidates[activeIndex]) {
-          e.preventDefault();
           onSelect(displayedCandidates[activeIndex].username);
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         onClose();
       }
     }
