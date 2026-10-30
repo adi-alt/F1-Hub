@@ -1,5 +1,5 @@
 import type { AvatarConfig } from "@/lib/avatar";
-import type { PostKind } from "@/lib/communities";
+import type { PostKind, PostPollView, PostSubscriptionState, PostTopComment } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { PostAttachment, PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
 import type { AuthorRecord, PostCallView } from "@/lib/supabase/postCalls";
@@ -30,6 +30,10 @@ export type PostCardData = {
    * before it was captured; the attachment renders its typed card in that case rather than
    * falling back to the storage UUID. */
   attachment?: PostAttachment | null;
+  /** Multi-image gallery attachments (2–4 images) when uploaded as a set. */
+  gallery?: PostAttachment[] | null;
+  /** Interactive poll attached to the post. */
+  poll?: PostPollView | null;
   status?: PostStatus;
   createdAt: string;
   score: number;
@@ -37,8 +41,14 @@ export type PostCardData = {
   saved?: boolean;
   commentCount: number;
   commentsLocked?: boolean;
+  /** Whether a moderator pinned this post to the top of the community feed. */
+  pinned?: boolean;
   /** Whether a comment on this question post has been marked as the accepted answer. */
   answered?: boolean;
+  /** 1-line preview of the accepted, pinned, or top comment on this post. */
+  topComment?: PostTopComment | null;
+  /** Viewer's notification subscription state for this post ("default" | "following" | "muted"). */
+  subscription?: PostSubscriptionState;
   /** When its author last edited it. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */

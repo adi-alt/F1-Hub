@@ -8,13 +8,15 @@ import { fieldControlClass } from "@/components/ui/Field";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
-import { POST_KIND_LABELS } from "@/lib/communities";
+import { POST_KIND_LABELS, type PostSubscriptionState } from "@/lib/communities";
 import { PostActionBar } from "./PostActionBar";
 import { PostContent } from "./PostContent";
 import { PostDetailWindow } from "./PostDetailWindow";
 import { PostAvatar, PostByline } from "./PostHeader";
 import { PostMedia } from "./PostMedia";
 import { PostAttachment } from "./PostAttachment";
+import { PostGallery } from "./PostGallery";
+import { PollCard } from "./PollCard";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
 import { useOptimisticSave } from "./useOptimisticSave";
@@ -101,7 +103,46 @@ export function PostCard({
   const [editing, setEditing] = useState(false);
   const [gone, setGone] = useState(false);
   const [commentsLocked, setCommentsLocked] = useState(!!post.commentsLocked);
-  const view = edited ? { ...post, ...edited } : post;
+  const [pinned, setPinned] = useState(!!post.pinned);
+  const [subscription, setSubscription] = useState<PostSubscriptionState>(post.subscription ?? "default");
+  const view = edited ? { ...post, ...edited, pinned } : { ...post, pinned };
+
+  async function togglePinned(close: () => void) {
+    const next = !pinned;
+    setModerating(true);
+    setModerateError("");
+    const res = await fetch(`/api/posts/${post.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned: next }),
+    }).catch(() => null);
+    setModerating(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setModerateError(body?.error ?? "Couldn't change pin status.");
+      return;
+    }
+    setPinned(next);
+    close();
+  }
+
+  async function changeSubscription(nextState: PostSubscriptionState, close: () => void) {
+    setModerating(true);
+    setModerateError("");
+    const res = await fetch(`/api/posts/${post.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subscription: nextState }),
+    }).catch(() => null);
+    setModerating(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setModerateError(body?.error ?? "Couldn't update notifications.");
+      return;
+    }
+    setSubscription(nextState);
+    close();
+  }
 
   /** Only a decision the server took changes the feed; a failure is said, in the menu, and nothing moves. */
   async function moderate(action: "approve" | "reject", close: () => void) {
@@ -285,10 +326,29 @@ export function PostCard({
                 </button>
               )}
               {canModerate && post.groupId && status === "published" && (
+                <button type="button" onClick={() => void togglePinned(close)} className={MENU_ITEM}>
+                  {pinned ? "Unpin post" : "Pin post to top"}
+                </button>
+              )}
+              {canModerate && post.groupId && status === "published" && (
                 <button type="button" onClick={() => setMenuView("lock")} className={MENU_ITEM}>
                   {commentsLocked ? "Unlock comments" : "Lock comments"}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => void changeSubscription(subscription === "following" ? "default" : "following", close)}
+                className={MENU_ITEM}
+              >
+                {subscription === "following" ? "Unfollow discussion" : "Follow discussion"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void changeSubscription(subscription === "muted" ? "default" : "muted", close)}
+                className={MENU_ITEM}
+              >
+                {subscription === "muted" ? "Unmute discussion" : "Mute discussion"}
+              </button>
               {canReport && (
                 <button type="button" onClick={() => setMenuView("report")} className={MENU_ITEM}>
                   Report
@@ -342,14 +402,50 @@ export function PostCard({
             ) : (
               <PostContent title={view.title} content={view.content} />
             )}
-            {/* PostAttachment whenever the post carries real metadata; PostMedia remains the path for
-                rows uploaded before it existed, which have a URL and nothing else. */}
-            {post.attachment ? <PostAttachment attachment={post.attachment} /> : post.mediaUrl ? <PostMedia url={post.mediaUrl} /> : null}
+            {/* Gallery, single attachment, or legacy mediaUrl */}
+            {post.gallery ? (
+              <PostGallery gallery={post.gallery} />
+            ) : post.attachment ? (
+              <PostAttachment attachment={post.attachment} />
+            ) : post.mediaUrl ? (
+              <PostMedia url={post.mediaUrl} />
+            ) : null}
+            {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
             {post.call && <CallChip call={post.call} />}
-            {(kindChip || answered) && (
+            {(pinned || kindChip || answered) && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {pinned && <Badge tone="warning">Pinned</Badge>}
                 {kindChip && <Badge tone="neutral">{kindChip}</Badge>}
                 {answered && <Badge tone="success">✓ Answered</Badge>}
+              </div>
+            )}
+            {post.topComment && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDetailOpen(true);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    setDetailOpen(true);
+                  }
+                }}
+                className="mt-2.5 flex items-center gap-2 rounded-control border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-caption text-secondary transition-colors hover:border-white/[0.12] hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+              >
+                {post.topComment.accepted ? (
+                  <Badge tone="success">✓ Answer</Badge>
+                ) : post.topComment.pinned ? (
+                  <Badge tone="warning">Pinned</Badge>
+                ) : (
+                  <span className="font-semibold text-tertiary">Top reply</span>
+                )}
+                <span className="truncate">
+                  <span className="font-medium text-primary">{post.topComment.authorName}:</span>{" "}
+                  {post.topComment.content}
+                </span>
               </div>
             )}
           </div>

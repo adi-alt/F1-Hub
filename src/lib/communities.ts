@@ -46,6 +46,85 @@ export type CommentReactionSummary = {
   mine: boolean;
 };
 
+export type PostPollOption = {
+  id: string;
+  label: string;
+  count: number;
+  pct: number;
+};
+
+export type PostPollView = {
+  question: string | null;
+  options: PostPollOption[];
+  totalVotes: number;
+  myOptionId: string | null;
+  closesAt: string | null;
+  closed: boolean;
+};
+
+export type PostPollInput = {
+  question?: string | null;
+  options: string[];
+  durationHours?: number | null;
+};
+
+export type PostTopComment = {
+  id: string;
+  authorName: string;
+  content: string;
+  pinned?: boolean;
+  accepted?: boolean;
+};
+
+export type PostSubscriptionState = "default" | "following" | "muted";
+
+export function summarizePoll(raw: unknown, uid: string): PostPollView | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  if (!Array.isArray(obj.options)) return null;
+  const rawOptions = obj.options
+    .filter((o): o is Record<string, unknown> => !!o && typeof o === "object" && !Array.isArray(o))
+    .map((o) => ({
+      id: typeof o.id === "string" ? o.id.trim() : "",
+      label: typeof o.label === "string" ? o.label.trim() : "",
+    }))
+    .filter((o) => o.id.length > 0 && o.label.length > 0);
+  if (rawOptions.length < 2) return null;
+
+  const validIds = new Set(rawOptions.map((o) => o.id));
+  const counts = new Map<string, number>();
+  let myOptionId: string | null = null;
+  if (obj.votes && typeof obj.votes === "object" && !Array.isArray(obj.votes)) {
+    for (const [voterId, choice] of Object.entries(obj.votes as Record<string, unknown>)) {
+      if (typeof choice !== "string" || !validIds.has(choice)) continue;
+      counts.set(choice, (counts.get(choice) ?? 0) + 1);
+      if (voterId === uid) myOptionId = choice;
+    }
+  }
+  const totalVotes = [...counts.values()].reduce((sum, n) => sum + n, 0);
+  const options: PostPollOption[] = rawOptions.map((o) => {
+    const count = counts.get(o.id) ?? 0;
+    return {
+      id: o.id,
+      label: o.label,
+      count,
+      pct: totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0,
+    };
+  });
+  const closesAt = typeof obj.closesAt === "string" && obj.closesAt.trim() ? obj.closesAt : null;
+  const closed = Boolean(closesAt && Date.parse(closesAt) <= Date.now());
+  const question = typeof obj.question === "string" && obj.question.trim() ? obj.question.trim() : null;
+  return { question, options, totalVotes, myOptionId, closesAt, closed };
+}
+
+export function summarizeSubscription(raw: unknown, uid: string): PostSubscriptionState {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || !uid) return "default";
+  const obj = raw as Record<string, unknown>;
+  if (Array.isArray(obj.muted) && obj.muted.includes(uid)) return "muted";
+  if (Array.isArray(obj.following) && obj.following.includes(uid)) return "following";
+  return "default";
+}
+
 // ---------------------------------------------------------------- community types
 
 export type CommunityTypeMeta = {

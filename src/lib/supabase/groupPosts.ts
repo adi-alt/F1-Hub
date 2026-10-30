@@ -5,17 +5,35 @@ import {
   COMMENT_REACTIONS,
   canDo,
   postKindsFor,
+  summarizePoll,
+  summarizeSubscription,
   type CommentReactionEmoji,
   type CommentReactionSummary,
   type PostKind,
+  type PostPollInput,
+  type PostPollOption,
+  type PostPollView,
+  type PostSubscriptionState,
+  type PostTopComment,
 } from "@/lib/communities";
-export { COMMENT_REACTIONS, type CommentReactionEmoji, type CommentReactionSummary };
+export {
+  COMMENT_REACTIONS,
+  summarizePoll,
+  summarizeSubscription,
+  type CommentReactionEmoji,
+  type CommentReactionSummary,
+  type PostPollInput,
+  type PostPollOption,
+  type PostPollView,
+  type PostSubscriptionState,
+  type PostTopComment,
+};
 import { getMemberRole, joinGroup, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaUrls";
 import { ServiceError } from "@/services/errors";
 import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
 import { logModeration } from "@/lib/supabase/moderationLog";
-import { notifyPostModerated, notifyPostPending, notifyReply } from "@/lib/notificationEvents";
+import { notifyMentions, notifyPostModerated, notifyPostPending, notifyReply } from "@/lib/notificationEvents";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
 
@@ -32,7 +50,7 @@ export type PostAttachment = {
   pages: number | null;
 };
 export type VoteValue = 1 | -1 | 0;
-export type FeedType = "following" | "latest" | "forYou";
+export type FeedType = "following" | "latest" | "forYou" | "saved";
 
 export type GroupPost = {
   kind: PostKind;
@@ -47,6 +65,10 @@ export type GroupPost = {
   content: string;
   mediaUrl: string | null;
   attachment: PostAttachment | null;
+  /** Multi-image gallery attachments (2–4 images) when uploaded as a set. */
+  gallery?: PostAttachment[] | null;
+  /** Interactive poll attached to the post. */
+  poll?: PostPollView | null;
   status: PostStatus;
   createdAt: string;
   score: number;
@@ -54,8 +76,14 @@ export type GroupPost = {
   saved: boolean;
   commentCount: number;
   commentsLocked: boolean;
+  /** Whether a moderator pinned this post to the top of the community feed. */
+  pinned?: boolean;
   /** Whether a comment on this question post has been marked as the accepted answer. */
   answered?: boolean;
+  /** 1-line preview of the accepted, pinned, or top comment on this post. */
+  topComment?: PostTopComment | null;
+  /** Viewer's notification subscription state for this post ("default" | "following" | "muted"). */
+  subscription?: PostSubscriptionState;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -128,14 +156,24 @@ export type FeedPost = {
   content: string;
   mediaUrl: string | null;
   attachment: PostAttachment | null;
+  /** Multi-image gallery attachments (2–4 images) when uploaded as a set. */
+  gallery?: PostAttachment[] | null;
+  /** Interactive poll attached to the post. */
+  poll?: PostPollView | null;
   createdAt: string;
   score: number;
   myVote: VoteValue;
   saved: boolean;
   commentCount: number;
   commentsLocked: boolean;
+  /** Whether a moderator pinned this post to the top of the community feed. */
+  pinned?: boolean;
   /** Whether a comment on this question post has been marked as the accepted answer. */
   answered?: boolean;
+  /** 1-line preview of the accepted, pinned, or top comment on this post. */
+  topComment?: PostTopComment | null;
+  /** Viewer's notification subscription state for this post ("default" | "following" | "muted"). */
+  subscription?: PostSubscriptionState;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -162,6 +200,72 @@ function attachmentFromRow(row: Record<string, unknown>): PostAttachment | null 
     thumbUrl: allowedMediaUrl(row.media_thumb_url),
     pages: (row.media_pages as number | null) ?? null,
   };
+}
+
+function galleryFromRow(row: Record<string, unknown>): PostAttachment[] | null {
+  if (!Array.isArray(row.gallery)) return null;
+  const items: PostAttachment[] = [];
+  for (const item of row.gallery) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const obj = item as Record<string, unknown>;
+    const url = allowedMediaUrl(obj.url);
+    if (!url) continue;
+    items.push({
+      url,
+      name: (obj.name as string | null) ?? null,
+      mime: (obj.mime as string | null) ?? null,
+      size: typeof obj.size === "number" ? obj.size : null,
+      thumbUrl: allowedMediaUrl(obj.thumbUrl),
+      pages: typeof obj.pages === "number" ? obj.pages : null,
+    });
+  }
+  return items.length >= 2 ? items : null;
+}
+
+function buildStoredPoll(input: PostPollInput | null | undefined): Record<string, unknown> | null {
+  if (!input || !Array.isArray(input.options)) return null;
+  const cleaned = input.options
+    .map((o) => (typeof o === "string" ? o.trim().slice(0, 80) : ""))
+    .filter((o) => o.length > 0);
+  if (cleaned.length === 0) return null;
+  if (cleaned.length < 2) throw new ServiceError("A poll needs at least 2 options.", 400);
+  if (cleaned.length > 6) throw new ServiceError("A poll can have up to 6 options.", 400);
+  const hours = typeof input.durationHours === "number" && Number.isFinite(input.durationHours) ? input.durationHours : null;
+  const closesAt =
+    hours && hours >= 1 && hours <= 720
+      ? new Date(Date.now() + hours * 3600 * 1000).toISOString()
+      : null;
+  const question = typeof input.question === "string" && input.question.trim() ? input.question.trim().slice(0, 140) : null;
+  return {
+    question,
+    options: cleaned.map((label, i) => ({ id: `opt_${i + 1}`, label })),
+    votes: {},
+    closesAt,
+  };
+}
+
+function buildStoredGallery(
+  raw: { url: string; name?: string | null; mime?: string | null; size?: number | null; thumbUrl?: string | null; pages?: number | null }[] | null | undefined,
+): Record<string, unknown>[] | null {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const out: Record<string, unknown>[] = [];
+  for (const item of raw.slice(0, 4)) {
+    if (!item || typeof item.url !== "string") continue;
+    const url = storedMediaUrl(item.url);
+    const thumbUrl = item.thumbUrl ? storedMediaUrl(item.thumbUrl) : null;
+    if (!url || !isAllowedMediaUrl(url) || (thumbUrl && !isAllowedMediaUrl(thumbUrl))) {
+      throw new ServiceError("Every gallery image must be uploaded through Apex F1 Hub.", 400);
+    }
+    out.push({
+      url,
+      name: item.name ?? null,
+      mime: item.mime ?? null,
+      size: typeof item.size === "number" ? item.size : null,
+      thumbUrl,
+      pages: typeof item.pages === "number" ? item.pages : null,
+    });
+  }
+  return out.length >= 2 ? out : null;
 }
 
 export const MAX_POST_CHARS = 2000;
@@ -198,13 +302,75 @@ function nameFor(profile: ProfileLite | undefined, userId: string): string {
 async function selectCommentsForPostSummary(postIds: string[]) {
   if (postIds.length === 0) return { data: [] as Record<string, unknown>[], error: null };
   const primary = await queryWithRetry(() =>
-    supabaseAdmin.from("group_post_comments").select("post_id, accepted_at").in("post_id", postIds).is("deleted_at", null),
+    supabaseAdmin
+      .from("group_post_comments")
+      .select("id, post_id, user_id, content, pinned_at, accepted_at")
+      .in("post_id", postIds)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true }),
   );
   if (!primary.error) return { data: (primary.data ?? []) as Record<string, unknown>[], error: null };
   const fallback = await queryWithRetry(() =>
     supabaseAdmin.from("group_post_comments").select("post_id").in("post_id", postIds).is("deleted_at", null),
   );
   return { data: (fallback.data ?? []) as Record<string, unknown>[], error: fallback.error };
+}
+
+async function summarizeCommentsByPost(
+  comments: Record<string, unknown>[],
+  profileById: Map<string, ProfileLite>,
+): Promise<{
+  commentCounts: Map<string, number>;
+  answeredPostIds: Set<string>;
+  topCommentByPostId: Map<string, PostTopComment>;
+}> {
+  const commentCounts = new Map<string, number>();
+  const answeredPostIds = new Set<string>();
+  const winnerRowByPost = new Map<string, { row: Record<string, unknown>; rank: number }>();
+
+  for (const c of comments) {
+    const pid = c.post_id as string;
+    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
+    if (c.accepted_at) answeredPostIds.add(pid);
+
+    const rawText = typeof c.content === "string" ? c.content.replace(/\u200b/g, "").trim() : "";
+    if (!rawText || typeof c.id !== "string" || typeof c.user_id !== "string") continue;
+    // Priority: accepted answer (3) > pinned comment (2) > first non-empty comment (1)
+    const rank = c.accepted_at ? 3 : c.pinned_at ? 2 : 1;
+    const current = winnerRowByPost.get(pid);
+    if (!current || rank > current.rank) {
+      winnerRowByPost.set(pid, { row: c, rank });
+    }
+  }
+
+  const missingUserIds = [...new Set([...winnerRowByPost.values()].map((w) => w.row.user_id as string))].filter(
+    (uid) => !profileById.has(uid),
+  );
+  if (missingUserIds.length > 0) {
+    const extraProfiles = await profilesById(missingUserIds);
+    for (const [k, v] of extraProfiles) profileById.set(k, v);
+  }
+
+  const topCommentByPostId = new Map<string, PostTopComment>();
+  for (const [pid, { row }] of winnerRowByPost) {
+    const uid = row.user_id as string;
+    const cleanText = (row.content as string)
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith(">"))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!cleanText) continue;
+    topCommentByPostId.set(pid, {
+      id: row.id as string,
+      authorName: nameFor(profileById.get(uid), uid),
+      content: cleanText.length > 140 ? `${cleanText.slice(0, 139)}…` : cleanText,
+      pinned: !!row.pinned_at,
+      accepted: !!row.accepted_at,
+    });
+  }
+
+  return { commentCounts, answeredPostIds, topCommentByPostId };
 }
 
 /**
@@ -233,7 +399,16 @@ export async function requireCanViewPost(groupId: string | null, uid: string): P
 export async function createPost(
   groupId: string | null,
   uid: string,
-  input: { title?: string; content: string; mediaUrl?: string | null; attachment?: Omit<PostAttachment, "url"> | null; kind?: PostKind; scheduledAt?: string | null },
+  input: {
+    title?: string;
+    content: string;
+    mediaUrl?: string | null;
+    attachment?: Omit<PostAttachment, "url"> | null;
+    gallery?: ({ url: string } & Partial<Omit<PostAttachment, "url">>)[] | null;
+    poll?: PostPollInput | null;
+    kind?: PostKind;
+    scheduledAt?: string | null;
+  },
 ): Promise<{ id: string; status: PostStatus; scheduledAt: string | null }> {
   const trimmedContent = input.content.trim();
   if (!trimmedContent) throw new ServiceError("Write something first.", 400);
@@ -247,6 +422,8 @@ export async function createPost(
   if ((mediaUrl && !isAllowedMediaUrl(mediaUrl)) || (thumbUrl && !isAllowedMediaUrl(thumbUrl))) {
     throw new ServiceError("That attachment can't be used here. Upload the file, or pick a GIF.", 400);
   }
+  const storedPoll = buildStoredPoll(input.poll);
+  const storedGallery = buildStoredGallery(input.gallery);
 
   let status: PostStatus = "published";
   // A post's kind must be one this community actually offers - a Photography community can't be
@@ -284,27 +461,34 @@ export async function createPost(
   const scheduledAt = parseScheduledAt(input.scheduledAt);
   if (scheduledAt && status === "published") status = "scheduled";
 
-  const { data, error } = await supabaseAdmin
-    .from("group_posts")
-    .insert({
-      group_id: groupId,
-      user_id: uid,
-      title: trimmedTitle,
-      content: trimmedContent,
-      media_url: mediaUrl,
-      media_name: input.attachment?.name ?? null,
-      media_mime: input.attachment?.mime ?? null,
-      media_size: input.attachment?.size ?? null,
-      media_thumb_url: thumbUrl,
-      media_pages: input.attachment?.pages ?? null,
-      status,
-      kind,
-      scheduled_at: status === "scheduled" ? scheduledAt : null,
-    })
-    .select("id")
-    .single();
+  const basePayload: Record<string, unknown> = {
+    group_id: groupId,
+    user_id: uid,
+    title: trimmedTitle,
+    content: trimmedContent,
+    media_url: mediaUrl,
+    media_name: input.attachment?.name ?? null,
+    media_mime: input.attachment?.mime ?? null,
+    media_size: input.attachment?.size ?? null,
+    media_thumb_url: thumbUrl,
+    media_pages: input.attachment?.pages ?? null,
+    status,
+    kind,
+    scheduled_at: status === "scheduled" ? scheduledAt : null,
+  };
+  const extendedPayload: Record<string, unknown> = {
+    ...basePayload,
+    ...(storedPoll ? { poll: storedPoll } : {}),
+    ...(storedGallery ? { gallery: storedGallery } : {}),
+  };
+
+  let { data, error } = await supabaseAdmin.from("group_posts").insert(extendedPayload).select("id").single();
+  if (error && (storedPoll || storedGallery) && (error.code === "42703" || error.message.includes("poll") || error.message.includes("gallery"))) {
+    ({ data, error } = await supabaseAdmin.from("group_posts").insert(basePayload).select("id").single());
+  }
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
   if (status === "pending" && groupId) await notifyPostPending(groupId, data.id as string, uid);
+  if (status === "published") await notifyMentions(groupId, data.id as string, null, uid, trimmedContent);
   return { id: data.id as string, status, scheduledAt: status === "scheduled" ? scheduledAt : null };
 }
 
@@ -426,6 +610,27 @@ export async function listPosts(
     if (error) throw new Error(`listPosts(${groupId}): ${error.message}`);
     if (!data?.length) return { posts: [], nextCursor: null };
     rows = data as Record<string, unknown>[];
+
+    // On the first page of "new", guarantee any pinned posts in this community float to the very top.
+    if (!ascending && !opts.cursor && !opts.pendingOnly && !opts.mediaOnly && !opts.kind && !opts.authorId && !opts.query) {
+      const { data: pinnedRows } = await queryWithRetry(() =>
+        supabaseAdmin
+          .from("group_posts")
+          .select("*")
+          .eq("group_id", groupId)
+          .eq("status", "published")
+          .not("pinned_at", "is", null)
+          .order("pinned_at", { ascending: false })
+          .limit(3),
+      ).catch(() => ({ data: null }));
+      if (pinnedRows?.length) {
+        const existingIds = new Set(rows.map((r) => r.id as string));
+        const extraPinned = (pinnedRows as Record<string, unknown>[]).filter((r) => !existingIds.has(r.id as string));
+        if (extraPinned.length > 0) {
+          rows = [...extraPinned, ...rows];
+        }
+      }
+    }
   }
 
   const hasMoreChronological = !ranked && rows.length > limit;
@@ -447,16 +652,10 @@ export async function listPosts(
   if (membersError) throw new Error(`listPosts(${groupId}): ${membersError.message}`);
   if (savesError) throw new Error(`listPosts(${groupId}): ${savesError.message}`);
 
+  const { commentCounts, answeredPostIds, topCommentByPostId } = await summarizeCommentsByPost(comments ?? [], profileById);
   const roleByAuthor = new Map((members ?? []).map((m) => [m.user_id as string, m.role as GroupRole]));
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
-  const commentCounts = new Map<string, number>();
-  const answeredPostIds = new Set<string>();
-  for (const c of comments ?? []) {
-    const pid = c.post_id as string;
-    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
-    if (c.accepted_at) answeredPostIds.add(pid);
-  }
 
   const mapped: GroupPost[] = enriching.map((p) => ({
     id: p.id as string,
@@ -470,17 +669,22 @@ export async function listPosts(
     content: p.content as string,
     mediaUrl: allowedMediaUrl(p.media_url),
     attachment: attachmentFromRow(p as Record<string, unknown>),
+    gallery: galleryFromRow(p as Record<string, unknown>),
+    poll: summarizePoll((p as Record<string, unknown>).poll, uid),
     kind: (p.kind as PostKind | null) ?? "discussion",
     status: p.status as PostStatus,
     createdAt: p.created_at as string,
     editedAt: (p.edited_at as string | null) ?? null,
     mine: p.user_id === uid,
+    pinned: !!(p as Record<string, unknown>).pinned_at,
     score: scoreByTarget.get(p.id as string) ?? 0,
     myVote: myVoteByTarget.get(p.id as string) ?? 0,
     saved: savedPostIds.has(p.id as string),
     commentCount: commentCounts.get(p.id as string) ?? 0,
     commentsLocked: !!p.comments_locked_at,
     answered: answeredPostIds.has(p.id as string),
+    topComment: topCommentByPostId.get(p.id as string) ?? null,
+    subscription: summarizeSubscription((p as Record<string, unknown>).subscriptions, uid),
   }));
 
   if (ranked) {
@@ -491,6 +695,10 @@ export async function listPosts(
     const page = mapped.slice(offset, offset + limit);
     const nextOffset = offset + page.length;
     return { posts: await withCalls(page), nextCursor: nextOffset < mapped.length ? `${OFFSET_CURSOR_PREFIX}${nextOffset}` : null };
+  }
+
+  if (sort === "new" && !opts.cursor) {
+    mapped.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   }
 
   return { posts: await withCalls(mapped), nextCursor: hasMoreChronological ? (enriching[enriching.length - 1].created_at as string) : null };
@@ -520,7 +728,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
 
   const [{ data: votes, error: votesError }, { data: comments, error: commentsError }, { data: saves, error: savesError }, profileById] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_votes").select("post_id, user_id, value").eq("post_id", postId)),
-    queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("post_id").eq("post_id", postId).is("deleted_at", null)),
+    selectCommentsForPostSummary([postId]),
     queryWithRetry(() => supabaseAdmin.from("group_post_saves").select("post_id").eq("post_id", postId).eq("user_id", uid)),
     profilesById([post.user_id as string]),
   ]);
@@ -528,6 +736,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
   if (commentsError) throw new Error(`getPostById(${postId}): ${commentsError.message}`);
   if (savesError) throw new Error(`getPostById(${postId}): ${savesError.message}`);
 
+  const { commentCounts, answeredPostIds, topCommentByPostId } = await summarizeCommentsByPost(comments ?? [], profileById);
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const authorRole = groupId ? ((await getMemberRole(groupId, post.user_id as string)) ?? "member") : "member";
 
@@ -543,16 +752,22 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     content: post.content as string,
     mediaUrl: allowedMediaUrl(post.media_url),
     attachment: attachmentFromRow(post as Record<string, unknown>),
+    gallery: galleryFromRow(post as Record<string, unknown>),
+    poll: summarizePoll((post as Record<string, unknown>).poll, uid),
     kind: (post.kind as PostKind | null) ?? "discussion",
     status,
     createdAt: post.created_at as string,
     editedAt: (post.edited_at as string | null) ?? null,
     mine: isMine,
+    pinned: !!(post as Record<string, unknown>).pinned_at,
     score: scoreByTarget.get(postId) ?? 0,
     myVote: myVoteByTarget.get(postId) ?? 0,
     saved: (saves ?? []).length > 0,
-    commentCount: (comments ?? []).length,
+    commentCount: commentCounts.get(postId) ?? 0,
     commentsLocked: !!post.comments_locked_at,
+    answered: answeredPostIds.has(postId),
+    topComment: topCommentByPostId.get(postId) ?? null,
+    subscription: summarizeSubscription((post as Record<string, unknown>).subscriptions, uid),
   };
   return (await withCalls([view]))[0];
 }
@@ -679,6 +894,50 @@ export async function listFeedPosts(
   const feedType = opts.feedType ?? "following";
   const limit = opts.limit ?? 15;
 
+  if (feedType === "saved") {
+    const savedList = await listSavedPosts(uid, limit);
+    const postGroupIds = [...new Set(savedList.map((p) => p.groupId).filter((id): id is string => !!id))];
+    const { data: groupsData } = postGroupIds.length > 0
+      ? await queryWithRetry(() => supabaseAdmin.from("groups").select("id, name, avatar_url").in("id", postGroupIds))
+      : { data: [] as { id: string; name: string; avatar_url: string | null }[] };
+    const groupById = new Map((groupsData ?? []).map((g) => [g.id as string, g]));
+
+    const posts: FeedPost[] = savedList.map((p) => {
+      const group = p.groupId ? groupById.get(p.groupId) : undefined;
+      return {
+        id: p.id,
+        groupId: p.groupId || null,
+        groupName: group?.name ?? null,
+        groupAvatarUrl: group?.avatar_url ?? null,
+        userId: p.userId,
+        authorName: p.authorName,
+        authorAvatar: p.authorAvatar ?? null,
+        title: p.title,
+        content: p.content,
+        mediaUrl: p.mediaUrl,
+        attachment: p.attachment,
+        gallery: p.gallery,
+        poll: p.poll,
+        kind: p.kind,
+        createdAt: p.createdAt,
+        editedAt: p.editedAt ?? null,
+        mine: p.mine,
+        score: p.score,
+        myVote: p.myVote,
+        saved: true,
+        pinned: p.pinned,
+        commentCount: p.commentCount,
+        commentsLocked: p.commentsLocked,
+        answered: p.answered,
+        topComment: p.topComment,
+        subscription: p.subscription,
+        call: p.call,
+        authorRecord: p.authorRecord,
+      };
+    });
+    return { posts, nextCursor: null };
+  }
+
   const joinedGroupIds = opts.joinedGroupIds ?? (await getJoinedGroupIds(uid));
 
   let query = supabaseAdmin.from("group_posts").select("*").eq("status", "published").order("created_at", { ascending: false }).limit(limit + 1);
@@ -718,16 +977,10 @@ export async function listFeedPosts(
   if (groupsError) throw new Error(`listFeedPosts: ${groupsError.message}`);
   if (savesError) throw new Error(`listFeedPosts: ${savesError.message}`);
 
+  const { commentCounts, answeredPostIds, topCommentByPostId } = await summarizeCommentsByPost(comments ?? [], profileById);
   const groupById = new Map((groupsData ?? []).map((g) => [g.id as string, g]));
   const { scoreByTarget, myVoteByTarget } = tallyVotes(votes, uid);
   const savedPostIds = new Set((saves ?? []).map((s) => s.post_id as string));
-  const commentCounts = new Map<string, number>();
-  const answeredPostIds = new Set<string>();
-  for (const c of comments ?? []) {
-    const pid = c.post_id as string;
-    commentCounts.set(pid, (commentCounts.get(pid) ?? 0) + 1);
-    if (c.accepted_at) answeredPostIds.add(pid);
-  }
 
   const posts: FeedPost[] = page.map((p) => {
     const groupId = (p.group_id as string | null) ?? null;
@@ -745,16 +998,21 @@ export async function listFeedPosts(
       content: p.content as string,
       mediaUrl: allowedMediaUrl(p.media_url),
       attachment: attachmentFromRow(p as Record<string, unknown>),
+      gallery: galleryFromRow(p as Record<string, unknown>),
+      poll: summarizePoll((p as Record<string, unknown>).poll, uid),
       kind: (p.kind as PostKind | null) ?? "discussion",
       createdAt: p.created_at as string,
       editedAt: (p.edited_at as string | null) ?? null,
       mine: p.user_id === uid,
+      pinned: !!(p as Record<string, unknown>).pinned_at,
       score: scoreByTarget.get(p.id as string) ?? 0,
       myVote: myVoteByTarget.get(p.id as string) ?? 0,
       saved: savedPostIds.has(p.id as string),
       commentCount: commentCounts.get(p.id as string) ?? 0,
       commentsLocked: !!p.comments_locked_at,
       answered: answeredPostIds.has(p.id as string),
+      topComment: topCommentByPostId.get(p.id as string) ?? null,
+      subscription: summarizeSubscription((p as Record<string, unknown>).subscriptions, uid),
     };
   });
   return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };
@@ -916,6 +1174,7 @@ export async function addComment(
   if (error?.message.includes("parent_comment_not_in_post")) throw new ServiceError("That comment isn't part of this discussion.", 400);
   if (error || !data) throw error ?? new ServiceError("Could not add comment.", 500);
   await notifyReply(groupId, postId, data.id as string, uid, parentCommentId ?? null);
+  if (trimmed) await notifyMentions(groupId, postId, data.id as string, uid, trimmed);
   return { id: data.id as string };
 }
 

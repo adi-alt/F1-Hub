@@ -61,7 +61,12 @@ function interleave(posts: PostCardData[], predictions: FeedPrediction[], result
     ...predictions.map((prediction) => ({ key: `prediction:${prediction.id}`, at: new Date(prediction.createdAt).getTime(), kind: "prediction" as const, prediction })),
     ...results,
   ];
-  return items.sort((a, b) => b.at - a.at);
+  return items.sort((a, b) => {
+    const aPinned = a.kind === "post" && a.post.pinned ? 1 : 0;
+    const bPinned = b.kind === "post" && b.post.pinned ? 1 : 0;
+    if (aPinned !== bPinned) return bPinned - aPinned;
+    return b.at - a.at;
+  });
 }
 
 /** The session a round is about: pole is settled by qualifying; every other round by the race. */
@@ -87,6 +92,7 @@ const TAB_ITEMS: TabItem<FeedType>[] = [
   // Not a personalised ranking (R-74): the communities you joined plus every public one, newest first - named for what it is.
   { value: "forYou", label: "Joined + public" },
   { value: "latest", label: "Latest" },
+  { value: "saved", label: "Saved" },
 ];
 
 /** The element the feed scrolls in: its own column on a desktop (data-feed-scroll, overflow-y auto), or null for the
@@ -605,15 +611,28 @@ function AggregateFeedStream({
         <EmptyState
           boxed
           icon={MessageSquare}
-          message={feedType === "following" ? "It's quiet in your communities. Start the conversation: the race weekend is a good place to begin." : "No posts to show right now."}
+          message={
+            feedType === "saved"
+              ? "No saved posts yet. Bookmark any post from the feed to find it here."
+              : feedType === "following"
+                ? "It's quiet in your communities. Start the conversation: the race weekend is a good place to begin."
+                : "No posts to show right now."
+          }
           action={
-            <Button variant="secondary" size="md" iconStart={Plus} onClick={onWritePost}>
-              Write a post
-            </Button>
+            feedType !== "saved" ? (
+              <Button variant="secondary" size="md" iconStart={Plus} onClick={onWritePost}>
+                Write a post
+              </Button>
+            ) : undefined
           }
         />
       ) : (
-        renderList(interleave(posts, predictions, results), true)
+        renderList(
+          feedType === "saved"
+            ? posts.map((post) => ({ key: `post:${post.id}`, at: new Date(post.createdAt).getTime(), kind: "post" as const, post }))
+            : interleave(posts, predictions, results),
+          true,
+        )
       )}
 
       {cursor ? (

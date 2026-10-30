@@ -10,6 +10,7 @@ import { groupHref } from "@/lib/routes";
 import type { PostCardData } from "./types";
 import type { SessionPhase } from "@/lib/communityWeekend";
 import { CallRecordBadge } from "./CallChip";
+import { AuthorProfilePopover } from "./AuthorProfilePopover";
 
 /**
  * Who wrote a post, the way a social feed says it: the author's own photo, and one muted line
@@ -68,7 +69,30 @@ export function PostByline({ post, showGroup, roleLabel, pending, sessionTag }: 
   );
   return (
     <div className="flex min-w-0 items-center gap-x-1.5 text-body-sm leading-5">
-      <span className="min-w-0 shrink truncate font-semibold text-primary">{post.authorName}</span>
+      <AuthorProfilePopover
+        userId={post.userId}
+        authorName={post.authorName}
+        authorAvatar={post.authorAvatar}
+        authorRole={post.authorRole}
+        authorRecord={post.authorRecord}
+        groupId={post.groupId}
+        groupName={post.groupName}
+      >
+        {({ ref, toggle, open }) => (
+          <button
+            ref={ref as (node: HTMLButtonElement | null) => void}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggle();
+            }}
+            aria-expanded={open}
+            className="min-w-0 shrink truncate rounded-control font-semibold text-primary transition-colors hover:text-brand-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+          >
+            {post.authorName}
+          </button>
+        )}
+      </AuthorProfilePopover>
       {post.authorRecord && <CallRecordBadge record={post.authorRecord} />}
       {roleLabel && <Badge tone="neutral">{roleLabel}</Badge>}
       {inCommunity && (

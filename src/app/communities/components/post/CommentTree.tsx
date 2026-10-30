@@ -16,6 +16,7 @@ import { CommentComposer } from "./CommentComposer";
 import { useOptimisticVote } from "./useOptimisticVote";
 import { VoteControl } from "./VoteControl";
 import { countDescendants, type CommentSort, type LocalComment } from "./useComments";
+import { AuthorProfilePopover } from "./AuthorProfilePopover";
 
 /** Two levels of visible nesting, then the thread flattens into a "View conversation" link rather
  * than marching further right until the text is a column one word wide. Deliberately a constant
@@ -254,7 +255,27 @@ function CommentNode({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-body-sm leading-5">
-              <span className="font-semibold text-primary">{comment.authorName}</span>
+              <AuthorProfilePopover
+                userId={comment.userId}
+                authorName={comment.authorName}
+                authorAvatar={avatar}
+                authorRole={comment.authorRole}
+              >
+                {({ ref, toggle, open }) => (
+                  <button
+                    ref={ref as (node: HTMLButtonElement | null) => void}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle();
+                    }}
+                    aria-expanded={open}
+                    className="rounded-control font-semibold text-primary transition-colors hover:text-brand-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                  >
+                    {comment.authorName}
+                  </button>
+                )}
+              </AuthorProfilePopover>
               {comment.isOp && <Badge tone="info">OP</Badge>}
               {comment.authorRole === "admin" && <Badge tone="neutral">Admin</Badge>}
               {comment.authorRole === "moderator" && <Badge tone="neutral">Mod</Badge>}
