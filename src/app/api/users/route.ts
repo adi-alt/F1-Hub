@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   // Autocomplete mentions in post/comment composers. Accessible to any signed-in user.
   if (searchParams.get("mention") === "1") {
     try {
-      const users = await searchMentions(searchParams.get("q") ?? "");
+      const users = await searchMentions(searchParams.get("q") ?? "", searchParams.get("groupId"));
       return NextResponse.json({ users, nextCursor: null });
     } catch (err) {
       if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });

@@ -16,12 +16,106 @@ export type MentionUser = {
 /**
  * Autocomplete candidate lookup for `@username` mentions. Available to any signed-in user
  * without exposing email or admin permissions. Returns up to 6 matches.
+ * If groupId is provided, prioritizes or suggests members of that community.
  */
-export async function searchMentions(term: string): Promise<MentionUser[]> {
+export async function searchMentions(term: string, groupId?: string | null): Promise<MentionUser[]> {
   const clean = term.trim().replace(/^@/, "").slice(0, 32);
-  if (!clean) return [];
+
+  // Helper to map DB profile rows to MentionUser[]
+  const formatRows = (rows: unknown[]): MentionUser[] => {
+    return (rows ?? [])
+      .filter(
+        (row): row is { id: string; username: string; display_name?: string | null; first_name?: string | null; last_name?: string | null; avatar?: unknown } =>
+          typeof row === "object" &&
+          row !== null &&
+          "id" in row &&
+          typeof (row as { id: unknown }).id === "string" &&
+          "username" in row &&
+          typeof (row as { username: unknown }).username === "string" &&
+          ((row as { username: string }).username.length > 0),
+      )
+      .map((row) => {
+        const parts = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
+        const name = row.display_name || parts || row.username;
+        return {
+          uid: row.id,
+          username: row.username,
+          displayName: name,
+          avatar: parseAvatar(row.avatar),
+        };
+      });
+  };
+
+  // If in a community, find members of that community
+  let memberIds: string[] | null = null;
+  if (groupId) {
+    const { data: memberRows } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("group_members")
+        .select("user_id")
+        .eq("group_id", groupId)
+        .limit(100),
+    );
+    if (memberRows && memberRows.length > 0) {
+      memberIds = memberRows.map((r) => r.user_id as string).filter(Boolean);
+    }
+  }
+
+  // Case 1: Search term is empty (user just typed '@') -> immediately suggest top users
+  if (!clean) {
+    if (memberIds && memberIds.length > 0) {
+      const { data, error } = await queryWithRetry(() =>
+        supabaseAdmin
+          .from("profiles")
+          .select("id, username, display_name, first_name, last_name, avatar")
+          .in("id", memberIds)
+          .limit(6),
+      );
+      if (error) throw new Error(`searchMentions(empty, group): ${error.message}`);
+      return formatRows(data ?? []);
+    }
+    // No community or no members: return top active profiles
+    const { data, error } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("profiles")
+        .select("id, username, display_name, first_name, last_name, avatar")
+        .limit(6),
+    );
+    if (error) throw new Error(`searchMentions(empty): ${error.message}`);
+    return formatRows(data ?? []);
+  }
+
+  // Case 2: Search term provided (user typed '@abc...')
   const escaped = clean.replace(/[\\%_]/g, (c) => `\\${c}`);
   const value = `"${`%${escaped}%`.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+
+  // If in a community with members, search community members first
+  if (memberIds && memberIds.length > 0) {
+    const { data: memberMatches } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("profiles")
+        .select("id, username, display_name, first_name, last_name, avatar")
+        .in("id", memberIds)
+        .or(`username.ilike.${value},display_name.ilike.${value},first_name.ilike.${value}`)
+        .limit(6),
+    );
+    const memberResults = formatRows(memberMatches ?? []);
+    if (memberResults.length >= 6) return memberResults;
+
+    // Fill remaining slots from global profiles
+    const existingUids = new Set(memberResults.map((u) => u.uid));
+    const { data: otherMatches } = await queryWithRetry(() =>
+      supabaseAdmin
+        .from("profiles")
+        .select("id, username, display_name, first_name, last_name, avatar")
+        .or(`username.ilike.${value},display_name.ilike.${value},first_name.ilike.${value}`)
+        .limit(6),
+    );
+    const otherResults = formatRows(otherMatches ?? []).filter((u) => !existingUids.has(u.uid));
+    return [...memberResults, ...otherResults].slice(0, 6);
+  }
+
+  // Global search
   const { data, error } = await queryWithRetry(() =>
     supabaseAdmin
       .from("profiles")
@@ -30,21 +124,7 @@ export async function searchMentions(term: string): Promise<MentionUser[]> {
       .limit(6),
   );
   if (error) throw new Error(`searchMentions(${clean}): ${error.message}`);
-  return (data ?? [])
-    .filter(
-      (row): row is typeof row & { id: string; username: string } =>
-        typeof row.id === "string" && typeof row.username === "string" && row.username.length > 0,
-    )
-    .map((row) => {
-      const parts = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
-      const name = (row.display_name as string | null) || parts || (row.username as string);
-      return {
-        uid: row.id,
-        username: row.username,
-        displayName: name,
-        avatar: parseAvatar(row.avatar),
-      };
-    });
+  return formatRows(data ?? []);
 }
 
 /** The search box's minimum useful term. A single character matches most of the table via

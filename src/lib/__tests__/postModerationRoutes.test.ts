@@ -11,7 +11,13 @@ import { mockModule } from "./support/mockModule";
 let session: { uid?: string } = {};
 mockModule("@/lib/session/getSession", { getSession: async () => session });
 mockModule("@/lib/rateLimit", { limitRequest: async () => null });
-mockModule("@/lib/notificationEvents", { notifyPostModerated: async () => {}, notifyPostPending: async () => {}, notifyReply: async () => {} });
+mockModule("@/lib/notificationEvents", {
+  notifyPostModerated: async () => {},
+  notifyPostPending: async () => {},
+  notifyReply: async () => {},
+  notifyMentions: async () => {},
+  notifyQuotes: async () => {},
+});
 
 const GROUP = "00000000-0000-4000-8000-000000000100";
 const POST = "00000000-0000-4000-8000-000000000200";

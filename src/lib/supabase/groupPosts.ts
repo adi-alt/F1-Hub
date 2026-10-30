@@ -33,7 +33,7 @@ import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaU
 import { ServiceError } from "@/services/errors";
 import { withCalls, type AuthorRecord, type PostCallView } from "@/lib/supabase/postCalls";
 import { logModeration } from "@/lib/supabase/moderationLog";
-import { notifyMentions, notifyPostModerated, notifyPostPending, notifyReply } from "@/lib/notificationEvents";
+import { notifyMentions, notifyPostModerated, notifyPostPending, notifyQuotes, notifyReply } from "@/lib/notificationEvents";
 
 export type PostStatus = "published" | "pending" | "rejected" | "scheduled";
 
@@ -488,7 +488,10 @@ export async function createPost(
   }
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
   if (status === "pending" && groupId) await notifyPostPending(groupId, data.id as string, uid);
-  if (status === "published") await notifyMentions(groupId, data.id as string, null, uid, trimmedContent);
+  if (status === "published") {
+    await notifyMentions(groupId, data.id as string, null, uid, trimmedContent);
+    await notifyQuotes(groupId, data.id as string, null, uid, trimmedContent);
+  }
   return { id: data.id as string, status, scheduledAt: status === "scheduled" ? scheduledAt : null };
 }
 
@@ -1174,7 +1177,10 @@ export async function addComment(
   if (error?.message.includes("parent_comment_not_in_post")) throw new ServiceError("That comment isn't part of this discussion.", 400);
   if (error || !data) throw error ?? new ServiceError("Could not add comment.", 500);
   await notifyReply(groupId, postId, data.id as string, uid, parentCommentId ?? null);
-  if (trimmed) await notifyMentions(groupId, postId, data.id as string, uid, trimmed);
+  if (trimmed) {
+    await notifyMentions(groupId, postId, data.id as string, uid, trimmed);
+    await notifyQuotes(groupId, postId, data.id as string, uid, trimmed, parentCommentId ?? null);
+  }
   return { id: data.id as string };
 }
 

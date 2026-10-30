@@ -235,6 +235,110 @@ export const notifyMentions = (groupId: string | null, postId: string, commentId
     });
   });
 
+/** Notifies authors of quoted comments or snippets (`> @author: ...` or `> @username: ...`). */
+export const notifyQuotes = (
+  groupId: string | null,
+  postId: string,
+  commentId: string | null,
+  actorId: string,
+  content: string,
+  parentCommentId?: string | null,
+) =>
+  safely(async () => {
+    const quoteLines = content
+      .split("\n")
+      .map((l) => l.trimStart())
+      .filter((l) => l.startsWith(">"));
+    if (quoteLines.length === 0) return;
+
+    // Quoted lines can look like `> @Aditya Verma: hi` or `> @username: snippet` or `> @username snippet`
+    const extractedTargets: { rawTarget: string; snippet: string }[] = [];
+    for (const line of quoteLines) {
+      const match = /^>\s*@([^\n:]{2,40})(?::\s*(.*))?$/.exec(line);
+      if (match) {
+        const rawTarget = match[1].trim();
+        const snippet = match[2]?.trim() || "";
+        if (rawTarget) extractedTargets.push({ rawTarget, snippet });
+      }
+    }
+    if (extractedTargets.length === 0) return;
+
+    // Look up profiles by username or display_name or first_name
+    const queries = extractedTargets.map((t) => t.rawTarget.toLowerCase().replace(/[,().:%_\\]/g, ""));
+    const uniqueQueries = [...new Set(queries)].slice(0, 5);
+    const filterClauses = uniqueQueries.flatMap((q) => [
+      `username.ilike.${q}`,
+      `display_name.ilike.${q}`,
+      `first_name.ilike.${q}`,
+    ]);
+    const { data: matchedProfiles } = await supabaseAdmin
+      .from("profiles")
+      .select("id, username, display_name, first_name")
+      .or(filterClauses.join(","))
+      .limit(10);
+
+    let recipientIds = [...new Set((matchedProfiles ?? []).map((p) => p.id as string))].filter((id) => id !== actorId);
+    if (recipientIds.length === 0) return;
+
+    // If parentCommentId is provided, parent author is already notified by notifyReply
+    if (parentCommentId) {
+      const { data: parentComment } = await supabaseAdmin
+        .from("group_post_comments")
+        .select("user_id")
+        .eq("id", parentCommentId)
+        .maybeSingle();
+      if (parentComment?.user_id) {
+        recipientIds = recipientIds.filter((id) => id !== parentComment.user_id);
+      }
+    }
+    if (recipientIds.length === 0) return;
+
+    if (groupId) {
+      const { data: groupRow } = await supabaseAdmin.from("groups").select("visibility").eq("id", groupId).maybeSingle();
+      if (groupRow && groupRow.visibility !== "public") {
+        const members = new Set(await communityMembers(groupId));
+        recipientIds = recipientIds.filter((id) => members.has(id));
+      }
+    }
+    if (recipientIds.length === 0) return;
+
+    const [actor, c] = await Promise.all([person(actorId), groupId ? community(groupId) : Promise.resolve(null)]);
+    const where = commentId ? "comment" : "post";
+    const href = groupId
+      ? commentId
+        ? `${groupHref(groupId)}&post=${postId}&comment=${commentId}`
+        : `${groupHref(groupId)}&post=${postId}`
+      : "/communities";
+
+    const quoteSnippet = excerpt(
+      extractedTargets
+        .map((t) => t.snippet)
+        .filter(Boolean)
+        .join(" ") || quoteLines.join("\n").replace(/^>\s*/gm, ""),
+    );
+
+    for (const recipientId of recipientIds) {
+      await notify([recipientId], {
+        kind: "reply",
+        title: `${actor.name} quoted you in a ${where}`,
+        href,
+        actorId,
+        groupId,
+        dedupeKey: `quote:${commentId ?? postId}:${recipientId}`,
+        email: {
+          subject: quoteSnippet ? `${actor.name} quoted you: "${excerpt(quoteSnippet, 50)}"` : `${actor.name} quoted you in a ${where}`,
+          preheader: quoteSnippet ?? "",
+          context: c ? contextOf(c) : undefined,
+          eyebrow: "Quote",
+          who: { name: actor.name, sub: `quoted you in a ${where}` },
+          quote: quoteSnippet,
+          cta: "View discussion",
+          reason: c ? `You were quoted in ${c.name}.` : "You were quoted in a discussion.",
+        },
+      });
+    }
+  });
+
 /** A post is held for review: the community's moderators. */
 export const notifyPostPending = (groupId: string, postId: string, authorId: string) =>
   safely(async () => {
