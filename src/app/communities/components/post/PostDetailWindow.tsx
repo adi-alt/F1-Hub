@@ -20,6 +20,7 @@ import { PollCard } from "./PollCard";
 import type { PostCardData } from "./types";
 import { filterCommentTree, useComments, type CommentFilter, type LocalComment } from "./useComments";
 import { VoteControl } from "./VoteControl";
+import { useAuth } from "@/providers/AuthProvider";
 
 /** How many top-level threads render before "Load more comments". The endpoint returns a post's
  * comments in one response (there is no cursor on it), so this is a real cap on what's mounted at
@@ -68,7 +69,9 @@ export function PostDetailWindow({
   onCountChange?: (count: number) => void;
   onAnsweredChange?: (answered: boolean) => void;
 }) {
-  const { comments, tree, sort, setSort, add, togglePin, toggleAccept, toggleReaction, discard, reload, error, loading } = useComments(post.id, onCountChange);
+  const { user, displayName: authName, avatar } = useAuth();
+  const currentUser = useMemo(() => (user ? { uid: user.uid, displayName: authName, avatar } : null), [user, authName, avatar]);
+  const { comments, tree, sort, setSort, add, togglePin, toggleAccept, toggleReaction, discard, reload, error, loading } = useComments(post.id, onCountChange, currentUser);
   const [visibleThreads, setVisibleThreads] = useState(THREADS_PER_PAGE);
   const [showAllComments, setShowAllComments] = useState(false);
   const [filter, setFilter] = useState<CommentFilter>("all");

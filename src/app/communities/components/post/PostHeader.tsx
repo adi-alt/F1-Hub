@@ -43,7 +43,34 @@ function SessionTag({ tag }: { tag: NonNullable<SessionPhase> }) {
 export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "post" | "showGroup"> & { size?: number }) {
   const { user, avatar: myAvatar } = useAuth();
   const isMe = !!user && user.uid === post.userId;
-  const photo = <PersonAvatar id={post.userId} avatar={post.authorAvatar ?? (isMe ? myAvatar : null)} size={size} />;
+  const resolvedAvatar = post.authorAvatar ?? (isMe ? myAvatar : null);
+  const photo = (
+    <AuthorProfilePopover
+      userId={post.userId}
+      authorName={post.authorName}
+      authorAvatar={resolvedAvatar}
+      authorRole={post.authorRole}
+      authorRecord={post.authorRecord}
+      groupId={post.groupId}
+      groupName={post.groupName}
+    >
+      {({ ref, toggle, open }) => (
+        <button
+          ref={ref as (node: HTMLButtonElement | null) => void}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+          aria-expanded={open}
+          aria-label={`About ${post.authorName}`}
+          className="flex shrink-0 rounded-full transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+        >
+          <PersonAvatar id={post.userId} avatar={resolvedAvatar} size={size} />
+        </button>
+      )}
+    </AuthorProfilePopover>
+  );
   if (!(showGroup && post.groupId)) return photo;
   const badge = Math.round(size * 0.45);
   return (
@@ -61,6 +88,9 @@ export function PostAvatar({ post, showGroup, size = 40 }: Pick<HeaderProps, "po
 }
 
 export function PostByline({ post, showGroup, roleLabel, pending, sessionTag }: HeaderProps) {
+  const { user, avatar: myAvatar } = useAuth();
+  const isMe = !!user && user.uid === post.userId;
+  const resolvedAvatar = post.authorAvatar ?? (isMe ? myAvatar : null);
   const inCommunity = showGroup && !!post.groupId;
   const dot = (
     <span aria-hidden className="text-tertiary">
@@ -72,7 +102,7 @@ export function PostByline({ post, showGroup, roleLabel, pending, sessionTag }: 
       <AuthorProfilePopover
         userId={post.userId}
         authorName={post.authorName}
-        authorAvatar={post.authorAvatar}
+        authorAvatar={resolvedAvatar}
         authorRole={post.authorRole}
         authorRecord={post.authorRecord}
         groupId={post.groupId}

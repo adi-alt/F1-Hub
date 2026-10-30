@@ -3,7 +3,7 @@
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { BarChart2, Check, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, Target, Trash2, X, type LucideIcon } from "lucide-react";
+import { BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, Target, Trash2, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
@@ -42,6 +42,11 @@ const MEDIA_MAX_BYTES: Record<string, number> = {
 };
 const FILE_ACCEPT = Object.keys(MEDIA_MAX_BYTES).join(",");
 const DRAFT_PREFIX = "f1hub_post_draft:";
+const POLL_DURATIONS = [
+  { value: 24, label: "24 hours" },
+  { value: 72, label: "3 days" },
+  { value: 168, label: "7 days" },
+] as const;
 
 type SavedPostDraft = {
   title: string;
@@ -173,6 +178,8 @@ export function PostComposer({
   const [gallery, setGallery] = useState<AttachmentView[]>([]);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollDraft, setPollDraft] = useState<{ question: string; options: string[]; durationHours: number } | null>(null);
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
+  const durationMenuRef = useRef<HTMLDivElement>(null);
   const [mentionState, setMentionState] = useState<{ query: string; startIndex: number } | null>(null);
   const validPollOptions = pollDraft?.options.map((o) => o.trim()).filter(Boolean) ?? [];
   const pollIncomplete = pollOpen && validPollOptions.length < 2;
@@ -234,6 +241,17 @@ export function PostComposer({
       // Draft persistence is best-effort; a blocked or full browser store must not affect posting.
     }
   }, [content, draftKey, fixedGroupId, groupId, title]);
+
+  useEffect(() => {
+    if (!durationMenuOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      if (durationMenuRef.current && !durationMenuRef.current.contains(e.target as Node)) {
+        setDurationMenuOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", onClickOutside);
+    return () => window.removeEventListener("mousedown", onClickOutside);
+  }, [durationMenuOpen]);
 
   const targetGroupId = fixedGroupId ?? groupId;
   const targetGroup = targetGroupId ? groups.find((g) => g.id === targetGroupId) : undefined;
@@ -429,6 +447,14 @@ export function PostComposer({
     setMentionState(checkMention(next, pos));
   }
 
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionState) {
+      if (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Escape") {
+        return;
+      }
+    }
+  }
+
   function handleKeyUp(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       const pos = e.currentTarget.selectionStart ?? content.length;
@@ -574,6 +600,7 @@ export function PostComposer({
                 ref={bodyRef}
                 value={content}
                 onChange={handleContentChange}
+                onKeyDown={handleKeyDown}
                 onKeyUp={handleKeyUp}
                 onFocus={() => setFocused(true)}
                 placeholder={placeholder ?? (displayName ? `What's on your mind, ${displayName.split(" ")[0]}?` : "What's on your mind?")}
@@ -706,23 +733,51 @@ export function PostComposer({
                     <div />
                   )}
 
-                  <div className="flex items-center gap-1 text-caption text-secondary">
+                  <div ref={durationMenuRef} className="relative flex items-center gap-1.5 text-caption text-secondary">
                     <span>Duration:</span>
-                    <select
-                      value={pollDraft?.durationHours ?? 24}
-                      onChange={(e) =>
-                        setPollDraft((prev) => ({
-                          question: prev?.question ?? "",
-                          options: prev?.options ?? ["", ""],
-                          durationHours: Number(e.target.value),
-                        }))
-                      }
-                      className="rounded-control border border-white/10 bg-surface-1 px-2 py-1 text-caption text-primary focus:outline-none"
+                    <button
+                      type="button"
+                      onClick={() => setDurationMenuOpen((v) => !v)}
+                      aria-haspopup="listbox"
+                      aria-expanded={durationMenuOpen}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-control border border-white/10 bg-surface-1 px-2 text-caption font-medium text-primary transition-colors hover:border-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                     >
-                      <option value={24}>24 hours</option>
-                      <option value={72}>3 days</option>
-                      <option value={168}>7 days</option>
-                    </select>
+                      <span>{POLL_DURATIONS.find((d) => d.value === (pollDraft?.durationHours ?? 24))?.label ?? "24 hours"}</span>
+                      <Icon icon={ChevronDown} size={16} className={`size-3 text-tertiary transition-transform duration-fast ${durationMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {durationMenuOpen && (
+                      <div
+                        role="listbox"
+                        aria-label="Poll duration"
+                        className="absolute bottom-full right-0 z-popover mb-1 min-w-[110px] overflow-hidden rounded-lg border border-white/12 bg-surface-1/95 p-1 shadow-overlay backdrop-blur-md"
+                      >
+                        {POLL_DURATIONS.map((dur) => {
+                          const isSelected = (pollDraft?.durationHours ?? 24) === dur.value;
+                          return (
+                            <button
+                              key={dur.value}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => {
+                                setPollDraft((prev) => ({
+                                  question: prev?.question ?? "",
+                                  options: prev?.options ?? ["", ""],
+                                  durationHours: dur.value,
+                                }));
+                                setDurationMenuOpen(false);
+                              }}
+                              className={`flex w-full items-center justify-between gap-2 rounded-control px-2.5 py-1.5 text-left text-caption transition-colors duration-fast ${
+                                isSelected ? "bg-white/[0.08] font-semibold text-primary" : "text-secondary hover:bg-white/[0.04] hover:text-primary"
+                              }`}
+                            >
+                              <span>{dur.label}</span>
+                              {isSelected && <Icon icon={Check} size={16} className="size-3 text-brand" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -169,8 +169,8 @@ function CommentNode({
     setReplying(true);
   }
 
-  const isMe = !!user && !!comment.userId && user.uid === comment.userId;
-  const avatar = comment.authorAvatar ?? (isMe ? myAvatar : null);
+  const isMe = Boolean(user && (comment.mine || (Boolean(comment.userId) && user.uid === comment.userId)));
+  const avatar = isMe ? (myAvatar ?? comment.authorAvatar ?? null) : (comment.authorAvatar ?? null);
 
   const children = childrenOf.get(comment.id) ?? [];
   const totalDescendants = countDescendants(comment.id, childrenOf);
@@ -239,7 +239,28 @@ function CommentNode({
       <div className={cardSurface}>
         <div className={`flex gap-3 ${comment.pending ? "opacity-60" : ""}`}>
           <div className="flex w-7 shrink-0 flex-col items-center">
-            <PersonAvatar id={comment.userId || comment.authorName} avatar={avatar} size={28} />
+            <AuthorProfilePopover
+              userId={comment.userId}
+              authorName={comment.authorName}
+              authorAvatar={avatar}
+              authorRole={comment.authorRole}
+            >
+              {({ ref, toggle, open }) => (
+                <button
+                  ref={ref as (node: HTMLButtonElement | null) => void}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggle();
+                  }}
+                  aria-expanded={open}
+                  aria-label={`About ${comment.authorName}`}
+                  className="rounded-full transition-opacity duration-fast hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                >
+                  <PersonAvatar id={comment.userId || (isMe ? (user?.uid ?? "") : "") || comment.authorName} avatar={avatar} size={28} />
+                </button>
+              )}
+            </AuthorProfilePopover>
             {showSpine && (
               <button
                 type="button"
