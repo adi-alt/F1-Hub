@@ -198,7 +198,18 @@ export function GroupsFeed({
         .map((s) => ({ key: `result:${weekend.round}:${s.key}`, at: sessionEndsAt(s), kind: "result" as const, session: s, lines: weekend.results[s.key] as ResultLine[] }))
     : [];
   const tagFor = (post: PostCardData) => (sessions.length ? sessionPhaseAt(sessions, Date.parse(post.createdAt)) : null);
+  const [selectedF1Tag, setSelectedF1Tag] = useState<string | null>(null);
+
   const inFilter = (item: FeedItem) => {
+    if (selectedF1Tag) {
+      if (item.kind !== "post") return false;
+      const matches = item.post.f1Tags?.some(
+        (t) =>
+          t.id.toLowerCase() === selectedF1Tag.toLowerCase() ||
+          t.label.toLowerCase() === selectedF1Tag.toLowerCase(),
+      );
+      if (!matches) return false;
+    }
     if (!sessionFilter) return true;
     if (item.kind === "result") return item.session.key === sessionFilter;
     if (item.kind === "prediction") return item.prediction.raceId === weekend?.raceId && sessionOfRound(item.prediction) === sessionFilter;
@@ -209,7 +220,13 @@ export function GroupsFeed({
 
   const renderItem = (item: FeedItem, i: number, showGroup: boolean) =>
     item.kind === "post" ? (
-      <PostCard post={item.post} index={i} showGroup={showGroup} sessionTag={tagFor(item.post)} />
+      <PostCard
+        post={item.post}
+        index={i}
+        showGroup={showGroup}
+        sessionTag={tagFor(item.post)}
+        onTagClick={setSelectedF1Tag}
+      />
     ) : item.kind === "result" ? (
       weekend && <SessionResultCard session={item.session} lines={item.lines} calledIt={weekend.calledIt[item.session.key]} race={{ year: weekend.year, round: weekend.round, name: weekend.raceName }} />
     ) : (
@@ -244,6 +261,21 @@ export function GroupsFeed({
     }
     return (
       <div className={FEED_LIST}>
+        {selectedF1Tag && (
+          <div className="flex items-center justify-between rounded-control border border-brand/30 bg-brand/10 px-3 py-1.5 text-caption">
+            <span className="flex items-center gap-1.5 text-primary">
+              <span>Filtered by tag:</span>
+              <span className="font-semibold text-brand">{selectedF1Tag}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedF1Tag(null)}
+              className="text-secondary hover:text-primary underline text-[11px]"
+            >
+              Clear tag filter
+            </button>
+          </div>
+        )}
         <AnimatePresence initial={false}>
           {visible.map((item, i) => (
             <motion.div key={item.key} {...ARRIVE}>

@@ -17,6 +17,8 @@ import { CommentSortControl, CommentTree } from "./CommentTree";
 import { PostHeader } from "./PostHeader";
 import { PostGallery } from "./PostGallery";
 import { PollCard } from "./PollCard";
+import { SpoilerShield } from "./SpoilerShield";
+import { F1TagChip } from "./F1TagChip";
 import type { PostCardData } from "./types";
 import { filterCommentTree, useComments, type CommentFilter, type LocalComment } from "./useComments";
 import { VoteControl } from "./VoteControl";
@@ -159,36 +161,46 @@ export function PostDetailWindow({
           <PostHeader post={post} showGroup roleLabel={roleLabel} pending={pending} />
         </div>
 
-        <div className="mt-2.5 flex items-start gap-3">
-          <div className="min-w-0 flex-1">
-            {post.title && <p className="text-body-sm font-semibold text-primary">{post.title}</p>}
-            <p className={`whitespace-pre-wrap break-words text-body-sm leading-6 text-primary/85 ${post.title ? "mt-1" : ""}`}>{post.content}</p>
+        <SpoilerShield isSpoiler={post.isSpoiler}>
+          <div className="mt-2.5 flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              {post.title && <p className="text-body-sm font-semibold text-primary">{post.title}</p>}
+              <p className={`whitespace-pre-wrap break-words text-body-sm leading-6 text-primary/85 ${post.title ? "mt-1" : ""}`}>{post.content}</p>
+            </div>
+            {thumbSrc && (
+              // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize
+              <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-control border border-white/10 object-cover" />
+            )}
           </div>
-          {thumbSrc && (
-            // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-uploaded Storage URLs, not a known-domain asset next/image can optimize
-            <img src={thumbSrc} alt="" className="h-16 w-20 shrink-0 rounded-control border border-white/10 object-cover" />
-          )}
-        </div>
 
-        {post.gallery ? (
-          <PostGallery gallery={post.gallery} />
-        ) : post.attachment && !thumbSrc ? (
-          <a
-            href={post.attachment.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 flex max-w-full items-center gap-2 rounded-control border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-caption text-secondary transition-colors hover:border-white/[0.16] hover:text-primary"
-          >
-            <span aria-hidden className="shrink-0 rounded-control bg-white/[0.07] px-1.5 py-0.5 text-caption font-bold tracking-wide text-secondary">
-              {attachmentBadge(attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url), post.attachment.name)}
-            </span>
-            <span className="truncate">
-              {displayName(post.attachment.name, attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url))}
-            </span>
-          </a>
-        ) : null}
+          {post.gallery ? (
+            <PostGallery gallery={post.gallery} />
+          ) : post.attachment && !thumbSrc ? (
+            <a
+              href={post.attachment.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex max-w-full items-center gap-2 rounded-control border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-caption text-secondary transition-colors hover:border-white/[0.16] hover:text-primary"
+            >
+              <span aria-hidden className="shrink-0 rounded-control bg-white/[0.07] px-1.5 py-0.5 text-caption font-bold tracking-wide text-secondary">
+                {attachmentBadge(attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url), post.attachment.name)}
+              </span>
+              <span className="truncate">
+                {displayName(post.attachment.name, attachmentKind(post.attachment.mime, post.attachment.name ?? post.attachment.url))}
+              </span>
+            </a>
+          ) : null}
 
-        {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
+          {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
+        </SpoilerShield>
+
+        {post.f1Tags && post.f1Tags.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {post.f1Tags.map((t) => (
+              <F1TagChip key={`${t.category}-${t.id}`} tag={t} size="xs" />
+            ))}
+          </div>
+        )}
 
         <div className="-ml-1.5 mt-2.5 flex flex-wrap items-center gap-1">
           <VoteControl score={score} myVote={myVote} onVote={onVote} compact />

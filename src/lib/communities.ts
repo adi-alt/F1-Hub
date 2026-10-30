@@ -78,6 +78,79 @@ export type PostTopComment = {
 
 export type PostSubscriptionState = "default" | "following" | "muted";
 
+// ---------------------------------------------------------------- F1 Entity Tags (Level 3)
+
+export type F1TagCategory = "grand_prix" | "circuit" | "driver" | "team" | "session";
+
+export type F1Tag = {
+  category: F1TagCategory;
+  id: string;
+  label: string;
+};
+
+export const F1_SESSION_TAGS: F1Tag[] = [
+  { category: "session", id: "race", label: "Race" },
+  { category: "session", id: "qualifying", label: "Qualifying" },
+  { category: "session", id: "sprint", label: "Sprint" },
+  { category: "session", id: "fp1", label: "FP1" },
+  { category: "session", id: "fp2", label: "FP2" },
+  { category: "session", id: "fp3", label: "FP3" },
+];
+
+export const F1_TEAM_TAGS: F1Tag[] = [
+  { category: "team", id: "red_bull", label: "Red Bull" },
+  { category: "team", id: "ferrari", label: "Ferrari" },
+  { category: "team", id: "mclaren", label: "McLaren" },
+  { category: "team", id: "mercedes", label: "Mercedes" },
+  { category: "team", id: "aston_martin", label: "Aston Martin" },
+  { category: "team", id: "alpine", label: "Alpine" },
+  { category: "team", id: "williams", label: "Williams" },
+  { category: "team", id: "haas", label: "Haas" },
+  { category: "team", id: "sauber", label: "Kick Sauber" },
+  { category: "team", id: "rb", label: "RB" },
+];
+
+export const F1_DRIVER_TAGS: F1Tag[] = [
+  { category: "driver", id: "verstappen", label: "Max Verstappen" },
+  { category: "driver", id: "hamilton", label: "Lewis Hamilton" },
+  { category: "driver", id: "norris", label: "Lando Norris" },
+  { category: "driver", id: "leclerc", label: "Charles Leclerc" },
+  { category: "driver", id: "piastri", label: "Oscar Piastri" },
+  { category: "driver", id: "russell", label: "George Russell" },
+  { category: "driver", id: "sainz", label: "Carlos Sainz" },
+  { category: "driver", id: "alonso", label: "Fernando Alonso" },
+  { category: "driver", id: "perez", label: "Sergio Perez" },
+  { category: "driver", id: "gasly", label: "Pierre Gasly" },
+  { category: "driver", id: "albon", label: "Alexander Albon" },
+  { category: "driver", id: "tsunoda", label: "Yuki Tsunoda" },
+  { category: "driver", id: "ocon", label: "Esteban Ocon" },
+  { category: "driver", id: "bearman", label: "Oliver Bearman" },
+  { category: "driver", id: "antonelli", label: "Kimi Antonelli" },
+  { category: "driver", id: "colapinto", label: "Franco Colapinto" },
+  { category: "driver", id: "lawson", label: "Liam Lawson" },
+  { category: "driver", id: "hulkenberg", label: "Nico Hulkenberg" },
+  { category: "driver", id: "stroll", label: "Lance Stroll" },
+  { category: "driver", id: "bortoleto", label: "Gabriel Bortoleto" },
+  { category: "driver", id: "doohan", label: "Jack Doohan" },
+];
+
+export function parseF1Tags(raw: unknown): F1Tag[] | null {
+  if (!Array.isArray(raw)) return null;
+  const validCategories = new Set<F1TagCategory>(["grand_prix", "circuit", "driver", "team", "session"]);
+  const tags: F1Tag[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const obj = item as Record<string, unknown>;
+    const category = obj.category as F1TagCategory;
+    const id = typeof obj.id === "string" ? obj.id.trim().toLowerCase() : "";
+    const label = typeof obj.label === "string" ? obj.label.trim() : "";
+    if (validCategories.has(category) && id && label) {
+      tags.push({ category, id, label });
+    }
+  }
+  return tags.length > 0 ? tags.slice(0, 5) : null;
+}
+
 export function summarizePoll(raw: unknown, uid: string): PostPollView | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
