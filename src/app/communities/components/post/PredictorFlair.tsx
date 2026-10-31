@@ -28,7 +28,7 @@ export function PredictorFlairBadge({
         className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-caption font-medium transition-all duration-fast focus-visible:outline-2 focus-visible:outline-focus-ring ${
           toneClasses.bg
         } ${toneClasses.text} ${toneClasses.border} ${toneClasses.glow} ${
-          size === "sm" ? "text-[11px] h-5" : "text-caption h-6 px-2.5"
+          size === "sm" ? "text-caption h-5" : "text-caption h-6 px-2.5"
         }`}
       >
         <span>{flair.label}</span>

@@ -97,7 +97,7 @@ export function F1TagSelector({
         <div className="flex items-center justify-between border-b border-white/8 pb-2">
           <div className="min-w-0">
             <span className="text-body-sm font-semibold text-primary">Tag F1 Topic</span>
-            <span className="ml-2 text-[11px] text-tertiary">({tags.length}/{MAX_TAGS})</span>
+            <span className="ml-2 text-caption text-tertiary">({tags.length}/{MAX_TAGS})</span>
           </div>
           <button
             type="button"
@@ -110,7 +110,7 @@ export function F1TagSelector({
         </div>
 
         {/* Category Tabs */}
-        <div className="mt-2.5 grid grid-cols-4 gap-1 p-0.5 bg-black/30 rounded-lg text-[11px]">
+        <div className="mt-2.5 grid grid-cols-4 gap-1 p-0.5 bg-black/30 rounded-lg text-caption">
           <button
             type="button"
             onClick={() => {
@@ -200,14 +200,14 @@ export function F1TagSelector({
                   }`}
                 >
                   <F1TagChip tag={tag} size="xs" />
-                  <span className="text-[11px] text-tertiary">{selected ? "Selected" : "+ Add"}</span>
+                  <span className="text-caption text-tertiary">{selected ? "Selected" : "+ Add"}</span>
                 </button>
               );
             })
           )}
         </div>
 
-        <p className="mt-2 text-center text-[10px] text-tertiary">
+        <p className="mt-2 text-center text-caption text-tertiary">
           Tagged posts can be filtered by community members.
         </p>
       </motion.div>

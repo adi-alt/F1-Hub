@@ -61,11 +61,11 @@ export function WeekendReceiptsCard({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Weekend Receipts</span>
+              <span className="text-caption font-bold uppercase tracking-wider text-amber-400">Weekend Receipts</span>
               <span className="text-tertiary">·</span>
               <span className="text-caption font-semibold text-primary">{receipt.raceName}</span>
             </div>
-            <p className="text-[11px] text-secondary">Community vs Apex Model debrief</p>
+            <p className="text-caption text-secondary">Community vs Apex Model debrief</p>
           </div>
         </div>
 
@@ -103,14 +103,14 @@ export function WeekendReceiptsCard({
           <span className="text-secondary">Weekend MVP:</span>
           <span className="font-semibold text-primary">{receipt.topPredictorName}</span>
         </div>
-        <span className="font-mono text-[11px] text-emerald-400 font-medium">
+        <span className="font-mono text-caption text-emerald-400 font-medium">
           {receipt.topPredictorScore}
         </span>
       </div>
 
       {/* Action footer */}
       <div className="mt-3 border-t border-white/[0.06] pt-2.5 flex items-center justify-between">
-        <span className="text-[11px] text-tertiary">
+        <span className="text-caption text-tertiary">
           {crowdWon ? "🏆 Communities took round honours" : "Apex model edged this round"}
         </span>
         <button

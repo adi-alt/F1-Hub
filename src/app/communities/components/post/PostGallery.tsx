@@ -40,7 +40,7 @@ export function PostGallery({ gallery }: { gallery: PostAttachment[] }) {
                 loading="lazy"
                 className="size-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               />
-              <div className="absolute bottom-1.5 right-1.5 rounded-control bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur-sm opacity-80 group-hover:opacity-100 transition-opacity">
+              <div className="absolute bottom-1.5 right-1.5 rounded-control bg-black/70 px-1.5 py-0.5 text-caption font-semibold text-white/90 backdrop-blur-sm opacity-80 group-hover:opacity-100 transition-opacity">
                 {index + 1}/{count}
               </div>
               <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-fast group-hover:bg-white/[0.04]" />

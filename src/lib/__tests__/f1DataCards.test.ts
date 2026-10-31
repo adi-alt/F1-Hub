@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 import { parseF1DataCard, type StintDataCard, type TelemetryDataCard, type WinProbabilityDataCard } from "@/lib/communities";
-import { computePredictorFlairs, PREDICTOR_FLAIR_PRESETS, getFlairToneClasses } from "@/lib/predictorFlairs";
+import { computePredictorFlairs, getFlairToneClasses } from "@/lib/predictorFlairs";
 
 describe("parseF1DataCard", () => {
   test("returns null for non-object or invalid inputs", () => {
@@ -126,3 +126,4 @@ describe("computePredictorFlairs", () => {
     assert.ok(cyan.text.includes("text-cyan"));
   });
 });
+

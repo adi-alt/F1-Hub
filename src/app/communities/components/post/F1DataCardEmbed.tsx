@@ -82,11 +82,11 @@ function CardHeader({
         </div>
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-tertiary">{category}</span>
+            <span className="text-caption font-bold uppercase tracking-wider text-tertiary">{category}</span>
             <span className="text-tertiary">·</span>
             <span className="truncate text-caption font-semibold text-primary">{title}</span>
           </div>
-          {subtitle && <p className="truncate text-[11px] text-secondary">{subtitle}</p>}
+          {subtitle && <p className="truncate text-caption text-secondary">{subtitle}</p>}
         </div>
       </div>
       <button
@@ -94,7 +94,7 @@ function CardHeader({
         onClick={onCopy}
         title="Copy citation"
         aria-label="Copy citation"
-        className="flex shrink-0 items-center gap-1 rounded-control bg-white/[0.04] px-2 py-1 text-[11px] text-tertiary transition-colors hover:bg-white/[0.08] hover:text-primary"
+        className="flex shrink-0 items-center gap-1 rounded-control bg-white/[0.04] px-2 py-1 text-caption text-tertiary transition-colors hover:bg-white/[0.08] hover:text-primary"
       >
         <Icon icon={copied ? Check : Copy} size={16} className={`size-3 ${copied ? "text-success" : ""}`} />
         <span>{copied ? "Copied" : "Cite"}</span>
@@ -140,7 +140,7 @@ function TelemetryCardView({
           <div className="min-w-0">
             <div className="flex items-baseline gap-1">
               <span className="font-mono text-body-sm font-bold text-primary">{card.driver1.code}</span>
-              <span className="truncate text-[11px] text-tertiary">{card.driver1.team}</span>
+              <span className="truncate text-caption text-tertiary">{card.driver1.team}</span>
             </div>
             {card.driver1.lapTime && <p className="font-mono text-caption text-secondary">{card.driver1.lapTime}</p>}
           </div>
@@ -150,7 +150,7 @@ function TelemetryCardView({
         <div className="flex items-center justify-end gap-2 text-right">
           <div className="min-w-0">
             <div className="flex items-baseline justify-end gap-1">
-              <span className="truncate text-[11px] text-tertiary">{card.driver2.team}</span>
+              <span className="truncate text-caption text-tertiary">{card.driver2.team}</span>
               <span className="font-mono text-body-sm font-bold text-primary">{card.driver2.code}</span>
             </div>
             {card.driver2.lapTime && <p className="font-mono text-caption text-secondary">{card.driver2.lapTime}</p>}
@@ -161,7 +161,7 @@ function TelemetryCardView({
 
       {/* Delta Badge & Visual Split Bar */}
       <div className="mt-2.5">
-        <div className="flex items-baseline justify-between text-[11px] text-tertiary mb-1">
+        <div className="flex items-baseline justify-between text-caption text-tertiary mb-1">
           <span className={d1Faster ? "font-semibold text-emerald-400" : ""}>
             {d1Faster ? `-${absDelta}s (${card.driver1.code})` : ""}
           </span>
@@ -192,13 +192,13 @@ function TelemetryCardView({
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-2 text-caption">
           {card.sectorDeltas && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] uppercase font-bold text-tertiary">Sectors:</span>
+              <span className="text-caption uppercase font-bold text-tertiary">Sectors:</span>
               {card.sectorDeltas.map((s, idx) => {
                 const sFaster = s <= 0;
                 return (
                   <span
                     key={idx}
-                    className={`rounded px-1.5 py-0.5 font-mono text-[11px] ${
+                    className={`rounded px-1.5 py-0.5 font-mono text-caption ${
                       sFaster ? "bg-emerald-500/10 text-emerald-400 font-medium" : "bg-white/[0.05] text-tertiary"
                     }`}
                   >
@@ -210,8 +210,8 @@ function TelemetryCardView({
           )}
 
           {card.speedTrap && (
-            <div className="flex items-center gap-1.5 font-mono text-[11px] text-tertiary">
-              <span className="text-[10px] uppercase font-bold">Trap:</span>
+            <div className="flex items-center gap-1.5 font-mono text-caption text-tertiary">
+              <span className="text-caption uppercase font-bold">Trap:</span>
               <span className="text-secondary">{card.speedTrap.driver1Speed} km/h</span>
               <span>vs</span>
               <span className="text-secondary">{card.speedTrap.driver2Speed} km/h</span>
@@ -279,7 +279,7 @@ function StintCardView({
               <span className="text-secondary tabular font-mono">
                 {stint.laps}L <span className="text-tertiary">({stint.startLap}–{stint.endLap})</span>
               </span>
-              {stint.isNew && <span className="text-[9px] font-bold text-success uppercase">New</span>}
+              {stint.isNew && <span className="text-caption font-bold text-success uppercase">New</span>}
             </div>
           );
         })}
@@ -325,14 +325,14 @@ function WinProbCardView({
             <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: leaderColor }} />
             <div className="min-w-0">
               <span className="text-caption font-bold text-primary">{card.leader.name}</span>
-              <span className="text-[11px] text-tertiary ml-1.5">Favorite</span>
+              <span className="text-caption text-tertiary ml-1.5">Favorite</span>
             </div>
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-title-sm font-bold tabular text-brand">{winPct}%</span>
             <span className="text-caption text-tertiary">Win</span>
             <span className="text-caption font-medium tabular text-secondary ml-1.5">{podiumPct}%</span>
-            <span className="text-[11px] text-tertiary">Podium</span>
+            <span className="text-caption text-tertiary">Podium</span>
           </div>
         </div>
 
@@ -357,7 +357,7 @@ function WinProbCardView({
                   <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: cColor }} />
                   <span className="font-medium text-secondary truncate">{c.name}</span>
                 </div>
-                <div className="flex items-center gap-2 tabular text-tertiary text-[11px]">
+                <div className="flex items-center gap-2 tabular text-tertiary text-caption">
                   <span className="w-16 bg-white/[0.06] h-1 rounded-full overflow-hidden">
                     <span className="block h-full bg-white/40" style={{ width: `${cWin}%` }} />
                   </span>

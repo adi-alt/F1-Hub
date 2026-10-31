@@ -21,7 +21,7 @@ export function SpoilerShield({
   if (revealed) {
     return (
       <div className={`relative group ${className}`}>
-        <div className="flex items-center justify-between pb-1 text-[11px] text-amber-300/80">
+        <div className="flex items-center justify-between pb-1 text-caption text-amber-300/80">
           <span className="inline-flex items-center gap-1 font-medium">
             <ShieldAlert className="size-3 text-amber-400" />
             Spoiler content revealed
@@ -67,7 +67,7 @@ export function SpoilerShield({
           </div>
           <div className="min-w-0">
             <p className="text-caption font-semibold text-primary">Spoiler Shield Active</p>
-            <p className="text-[12px] text-secondary">May contain race or session outcomes</p>
+            <p className="text-caption text-secondary">May contain race or session outcomes</p>
           </div>
           <button
             type="button"

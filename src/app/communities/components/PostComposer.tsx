@@ -858,7 +858,7 @@ export function PostComposer({
                   <div key={`${item.url}-${idx}`} className="group relative aspect-[4/3] overflow-hidden rounded-control border border-white/10 bg-black/20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={item.thumbUrl ?? item.url} alt={item.name ?? `Photo ${idx + 1}`} className="size-full object-cover" />
-                    <div className="absolute bottom-1.5 left-1.5 rounded-control bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+                    <div className="absolute bottom-1.5 left-1.5 rounded-control bg-black/70 px-1.5 py-0.5 text-caption font-semibold text-white/90 backdrop-blur-sm">
                       {idx + 1}/{gallery.length}
                     </div>
                     <button
@@ -919,7 +919,7 @@ export function PostComposer({
           {/* Active F1 Entity Tags */}
           {f1Tags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 pl-11 pt-2 text-caption">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-tertiary">Topics:</span>
+              <span className="text-caption font-semibold uppercase tracking-wider text-tertiary">Topics:</span>
               {f1Tags.map((tag) => (
                 <F1TagChip
                   key={`${tag.category}-${tag.id}`}
@@ -953,7 +953,7 @@ export function PostComposer({
                 <button
                   type="button"
                   onClick={() => setIsSpoiler(false)}
-                  className="shrink-0 rounded-control px-2 py-0.5 text-[11px] font-semibold text-amber-300 hover:text-amber-100 hover:bg-amber-500/20 transition-colors"
+                  className="shrink-0 rounded-control px-2 py-0.5 text-caption font-semibold text-amber-300 hover:text-amber-100 hover:bg-amber-500/20 transition-colors"
                 >
                   Turn off
                 </button>
