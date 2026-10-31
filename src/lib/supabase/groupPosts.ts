@@ -479,17 +479,20 @@ export async function createPost(
   const scheduledAt = parseScheduledAt(input.scheduledAt);
   if (scheduledAt && status === "published") status = "scheduled";
 
+  const primaryAttachment = input.attachment ?? (input.gallery && input.gallery[0] ? input.gallery[0] : null);
+  const primaryThumb = primaryAttachment?.thumbUrl ? storedMediaUrl(primaryAttachment.thumbUrl) : thumbUrl;
+
   const basePayload: Record<string, unknown> = {
     group_id: groupId,
     user_id: uid,
     title: trimmedTitle,
     content: trimmedContent,
     media_url: mediaUrl,
-    media_name: input.attachment?.name ?? null,
-    media_mime: input.attachment?.mime ?? null,
-    media_size: input.attachment?.size ?? null,
-    media_thumb_url: thumbUrl,
-    media_pages: input.attachment?.pages ?? null,
+    media_name: primaryAttachment?.name ?? null,
+    media_mime: primaryAttachment?.mime ?? null,
+    media_size: primaryAttachment?.size ?? null,
+    media_thumb_url: primaryThumb,
+    media_pages: primaryAttachment?.pages ?? null,
     status,
     kind,
     scheduled_at: status === "scheduled" ? scheduledAt : null,
@@ -512,7 +515,19 @@ export async function createPost(
       error.message.includes("f1_tags") ||
       error.message.includes("is_spoiler"))
   ) {
-    ({ data, error } = await supabaseAdmin.from("group_posts").insert(basePayload).select("id").single());
+    // Try preserving gallery and poll first if only f1_tags/is_spoiler was missing
+    const midPayload: Record<string, unknown> = {
+      ...basePayload,
+      ...(storedPoll ? { poll: storedPoll } : {}),
+      ...(storedGallery ? { gallery: storedGallery } : {}),
+    };
+    const midRes = await supabaseAdmin.from("group_posts").insert(midPayload).select("id").single();
+    if (!midRes.error && midRes.data) {
+      data = midRes.data;
+      error = null;
+    } else {
+      ({ data, error } = await supabaseAdmin.from("group_posts").insert(basePayload).select("id").single());
+    }
   }
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
   if (status === "pending" && groupId) await notifyPostPending(groupId, data.id as string, uid);

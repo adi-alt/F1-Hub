@@ -408,7 +408,7 @@ export function PostCard({
               <SpoilerShield isSpoiler={post.isSpoiler}>
                 <PostContent title={view.title} content={view.content} />
                 {/* Gallery, single attachment, or legacy mediaUrl */}
-                {post.gallery ? (
+                {post.gallery && post.gallery.length >= 2 ? (
                   <PostGallery gallery={post.gallery} />
                 ) : post.attachment ? (
                   <PostAttachment attachment={post.attachment} />

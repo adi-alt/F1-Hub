@@ -324,7 +324,8 @@ export function PostComposer({
       return null;
     }
     if (file.size > maxBytes) {
-      setMediaError(`This file type is limited to ${maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB"}.`);
+      const limitLabel = maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB";
+      setMediaError(`"${file.name}" exceeds the ${limitLabel} limit.`);
       return null;
     }
     const preview = file.type === "application/pdf" ? await renderPdfFirstPage(file) : null;
@@ -527,8 +528,14 @@ export function PostComposer({
         content: trimmed,
         mediaUrl: gallery.length > 0 ? gallery[0].url : mediaUrl,
         attachment:
-          gallery.length < 2 && attachment
-            ? { name: attachment.name, mime: attachment.mime, size: attachment.size, thumbUrl: attachment.thumbUrl, pages: attachment.pages }
+          gallery.length < 2 && (attachment || (gallery.length === 1 ? gallery[0] : null))
+            ? {
+                name: (attachment ?? gallery[0]).name,
+                mime: (attachment ?? gallery[0]).mime,
+                size: (attachment ?? gallery[0]).size,
+                thumbUrl: (attachment ?? gallery[0]).thumbUrl,
+                pages: (attachment ?? gallery[0]).pages,
+              }
             : null,
         gallery:
           gallery.length >= 2
@@ -938,7 +945,7 @@ export function PostComposer({
                     </span>
                   )
                 : isOpen && (
-                    <div className="w-44">
+                    <div className="w-52 max-w-[14rem]">
                       <CommunitySelector groups={groups} value={groupId} onChange={setGroupId} />
                     </div>
                   )}

@@ -70,3 +70,4 @@ test("catalogs for sessions, teams, and drivers are non-empty and well-formed", 
     assert.ok(["session", "team", "driver", "grand_prix", "circuit"].includes(tag.category));
   }
 });
+
