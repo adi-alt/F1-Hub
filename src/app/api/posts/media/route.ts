@@ -8,7 +8,7 @@ import { quotaError } from "@/lib/uploadQuota";
 import { listPostMediaObjects } from "@/lib/supabase/postMediaStorage";
 
 
-const IMAGE_MAX_BYTES = 500 * 1024;
+const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 const OTHER_MAX_BYTES = 2 * 1024 * 1024;
 
 // ext -> [mime, max bytes for that mime, "image"|"video"|"document" for PostMedia's own rendering
@@ -67,8 +67,8 @@ export async function POST(request: Request) {
   const spec = MEDIA_TYPES[file.type];
   if (!spec) return NextResponse.json({ error: "Unsupported file type." }, { status: 400 });
   if (file.size > spec.maxBytes) {
-    const limitLabel = spec.maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB";
-    return NextResponse.json({ error: `This file type is limited to ${limitLabel}.` }, { status: 400 });
+    const limitLabel = "2MB";
+    return NextResponse.json({ error: `"${safeOriginalName(file.name)}" exceeds the ${limitLabel} limit.` }, { status: 400 });
   }
 
   // The per-person total (audit R-14), counting the optional thumbnail too. Fails closed: if the folder can't be
