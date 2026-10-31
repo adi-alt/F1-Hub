@@ -19,6 +19,7 @@ import { PostGallery } from "./PostGallery";
 import { PollCard } from "./PollCard";
 import { SpoilerShield } from "./SpoilerShield";
 import { F1TagChip } from "./F1TagChip";
+import { F1DataCardEmbed } from "./F1DataCardEmbed";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
 import { useOptimisticSave } from "./useOptimisticSave";
@@ -417,6 +418,7 @@ export function PostCard({
                 ) : null}
                 {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
                 {post.call && <CallChip call={post.call} />}
+                {post.dataCard && <F1DataCardEmbed dataCard={post.dataCard} />}
               </SpoilerShield>
             )}
 

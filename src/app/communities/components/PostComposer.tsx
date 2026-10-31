@@ -3,11 +3,11 @@
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, ShieldAlert, Tag, Target, Trash2, X, type LucideIcon } from "lucide-react";
+import { Activity, BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, ShieldAlert, Tag, Target, Trash2, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
-import { canDo, postKindsFor, type F1Tag } from "@/lib/communities";
+import { canDo, postKindsFor, type F1DataCard, type F1Tag } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
 import { PostAttachment, type AttachmentView } from "./post/PostAttachment";
@@ -24,6 +24,8 @@ import { GifPicker } from "./post/GifPicker";
 import { MentionAutocomplete } from "./post/MentionAutocomplete";
 import { F1TagSelector } from "./post/F1TagSelector";
 import { F1TagChip } from "./post/F1TagChip";
+import { F1DataCardEmbed } from "./post/F1DataCardEmbed";
+import { F1DataCardModal } from "./post/F1DataCardModal";
 
 const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 const OTHER_MAX_BYTES = 2 * 1024 * 1024;
@@ -188,6 +190,8 @@ export function PostComposer({
   const pollIncomplete = pollOpen && validPollOptions.length < 2;
   const [f1Tags, setF1Tags] = useState<F1Tag[]>([]);
   const [isSpoiler, setIsSpoiler] = useState(false);
+  const [dataCard, setDataCard] = useState<F1DataCard | null>(null);
+  const [showDataCardModal, setShowDataCardModal] = useState(false);
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
   // that community's own permission map, through the exact helper createPrediction uses
@@ -267,7 +271,7 @@ export function PostComposer({
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
   const canPredict = !!targetGroup && postKindsFor(targetGroup.communityType, targetGroup.features).includes("prediction");
-  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen || pollOpen || gallery.length > 0;
+  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen || pollOpen || gallery.length > 0 || !!dataCard;
 
   // A blob: URL (createObjectURL below) holds its referenced data in memory until explicitly
   // revoked or the document unloads - real, if minor, for a composer someone can attach/remove
@@ -301,6 +305,8 @@ export function PostComposer({
     setF1Tags([]);
     setIsSpoiler(false);
     setShowTags(false);
+    setDataCard(null);
+    setShowDataCardModal(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
@@ -313,7 +319,8 @@ export function PostComposer({
       gallery.length > 0 ||
       (pollOpen && validPollOptions.length > 0) ||
       f1Tags.length > 0 ||
-      isSpoiler
+      isSpoiler ||
+      dataCard
     ) {
       setConfirmDiscard(true);
       return;
@@ -328,7 +335,7 @@ export function PostComposer({
       return null;
     }
     if (file.size > maxBytes) {
-      const limitLabel = maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB";
+      const limitLabel = "2MB";
       setMediaError(`"${file.name}" exceeds the ${limitLabel} limit.`);
       return null;
     }
@@ -564,6 +571,7 @@ export function PostComposer({
         call: hasCall && callableRace && callDraft ? { raceId: callableRace.raceId, ...callDraft } : undefined,
         f1Tags: f1Tags.length > 0 ? f1Tags : undefined,
         isSpoiler: isSpoiler || undefined,
+        dataCard: dataCard || undefined,
       }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
@@ -953,6 +961,24 @@ export function PostComposer({
             </div>
           )}
 
+          {/* Active F1 Data Card Preview (Level 3.2) */}
+          {dataCard && (
+            <div className="pl-11 pt-2">
+              <div className="relative">
+                <F1DataCardEmbed dataCard={dataCard} />
+                <button
+                  type="button"
+                  onClick={() => setDataCard(null)}
+                  title="Remove data card"
+                  aria-label="Remove data card"
+                  className="absolute right-2.5 top-6 flex size-6 items-center justify-center rounded-full bg-surface-2 text-secondary shadow-md hover:bg-surface-3 hover:text-primary transition-colors"
+                >
+                  <Icon icon={X} size={16} className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
           <div className="mt-1.5 flex flex-wrap items-center gap-0.5 pl-9">
             <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photos (up to 4)" />
@@ -988,6 +1014,13 @@ export function PostComposer({
                   ? "Spoiler Shield ON (click to remove)"
                   : "Spoiler Shield: Blur post in feed to hide race results & outcomes until clicked"
               }
+            />
+            <ToolButton
+              onClick={() => setShowDataCardModal(true)}
+              active={!!dataCard}
+              activeTone="cyan"
+              icon={Activity}
+              label={dataCard ? `F1 Data: ${dataCard.kind} attached` : "Attach F1 Data Card (Telemetry, Stints, Win Odds)"}
             />
             <ComposeAssist draft={content} onReplace={setContent} />
             {canPredict && <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={Compass} label="Prediction" />}
@@ -1083,6 +1116,11 @@ export function PostComposer({
                 upcomingRaces={upcomingRaces}
               />
             )}
+            <F1DataCardModal
+              open={showDataCardModal}
+              onClose={() => setShowDataCardModal(false)}
+              onSelect={(card) => setDataCard(card)}
+            />
           </AnimatePresence>
         </>
       )}
@@ -1104,7 +1142,7 @@ function ToolButton({
   icon: LucideIcon;
   label: string;
   active?: boolean;
-  activeTone?: "default" | "amber";
+  activeTone?: "default" | "amber" | "cyan";
 }) {
   return (
     <button
@@ -1118,7 +1156,9 @@ function ToolButton({
         active
           ? activeTone === "amber"
             ? "border border-amber-500/40 bg-amber-500/20 text-amber-300"
-            : "bg-white/[0.1] text-primary"
+            : activeTone === "cyan"
+              ? "border border-cyan-500/40 bg-cyan-500/20 text-cyan-300"
+              : "bg-white/[0.1] text-primary"
           : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
       }`}
     >

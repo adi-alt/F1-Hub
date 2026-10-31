@@ -22,6 +22,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { FitStack } from "./FitStack";
 import { CrowdVsApexWidget } from "./CrowdVsApexWidget";
+import { WeekendReceiptsCard } from "./weekend/WeekendReceiptsCard";
 import type { CrowdVsModel } from "@/lib/supabase/communityWeekend";
 import { EYEBROW, PANEL } from "./panel";
 import { RollingText } from "@/components/ui/RollingNumber";
@@ -363,8 +364,11 @@ function StreamedCrowdVsApexSection({
   return (
     <>
       <CrowdVsApexLine record={resolved} onOpen={() => setShowRecord(true)} />
-      <Dialog open={showRecord} onClose={() => setShowRecord(false)} title="Crowd vs Apex" size="sm">
-        <CrowdVsApexWidget record={resolved} heading={false} />
+      <Dialog open={showRecord} onClose={() => setShowRecord(false)} title="Crowd vs Apex & Weekend Receipts" size="md">
+        <div className="space-y-4">
+          <CrowdVsApexWidget record={resolved} heading={false} />
+          <WeekendReceiptsCard />
+        </div>
       </Dialog>
     </>
   );

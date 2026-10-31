@@ -151,6 +151,165 @@ export function parseF1Tags(raw: unknown): F1Tag[] | null {
   return tags.length > 0 ? tags.slice(0, 5) : null;
 }
 
+// ---------------------------------------------------------------- F1 Data Cards (Level 3.2)
+
+export type TelemetryDataCard = {
+  kind: "telemetry";
+  raceName: string;
+  session: string;
+  driver1: { code: string; name: string; team: string; lapTime?: string };
+  driver2: { code: string; name: string; team: string; lapTime?: string };
+  deltaSeconds: number; // e.g. -0.142 (driver1 faster by 0.142s)
+  sectorDeltas?: [number, number, number]; // deltas in S1, S2, S3
+  speedTrap?: { driver1Speed: number; driver2Speed: number }; // km/h
+  circuit?: string;
+};
+
+export type StintDataCard = {
+  kind: "stint";
+  raceName: string;
+  driver: { code: string; name: string; team: string };
+  stints: {
+    compound: "SOFT" | "MEDIUM" | "HARD" | "INTERMEDIATE" | "WET";
+    laps: number;
+    startLap: number;
+    endLap: number;
+    isNew?: boolean;
+  }[];
+  totalLaps: number;
+};
+
+export type WinProbabilityDataCard = {
+  kind: "win_probability";
+  raceName: string;
+  leader: { code: string; name: string; team: string; winProb: number; podiumProb: number };
+  contenders: { code: string; name: string; team: string; winProb: number; podiumProb: number }[];
+  simulationsCount: number;
+  projectedPodium?: [string, string, string];
+  headline?: string;
+};
+
+export type F1DataCard = TelemetryDataCard | StintDataCard | WinProbabilityDataCard;
+
+export function parseF1DataCard(raw: unknown): F1DataCard | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+  const kind = obj.kind;
+
+  if (kind === "telemetry") {
+    if (typeof obj.raceName !== "string" || !obj.driver1 || !obj.driver2) return null;
+    const d1 = obj.driver1 as Record<string, unknown>;
+    const d2 = obj.driver2 as Record<string, unknown>;
+    if (typeof d1.code !== "string" || typeof d2.code !== "string") return null;
+    const delta = typeof obj.deltaSeconds === "number" ? obj.deltaSeconds : 0;
+    const sectorDeltas = Array.isArray(obj.sectorDeltas) && obj.sectorDeltas.length === 3
+      ? [Number(obj.sectorDeltas[0]) || 0, Number(obj.sectorDeltas[1]) || 0, Number(obj.sectorDeltas[2]) || 0] as [number, number, number]
+      : undefined;
+    const speedTrap = obj.speedTrap && typeof obj.speedTrap === "object"
+      ? { driver1Speed: Number((obj.speedTrap as Record<string, unknown>).driver1Speed) || 0, driver2Speed: Number((obj.speedTrap as Record<string, unknown>).driver2Speed) || 0 }
+      : undefined;
+
+    return {
+      kind: "telemetry",
+      raceName: obj.raceName.slice(0, 100),
+      session: typeof obj.session === "string" ? obj.session.slice(0, 50) : "Qualifying",
+      driver1: {
+        code: String(d1.code).toUpperCase().slice(0, 3),
+        name: String(d1.name || d1.code).slice(0, 50),
+        team: String(d1.team || "").slice(0, 50),
+        lapTime: typeof d1.lapTime === "string" ? d1.lapTime.slice(0, 20) : undefined,
+      },
+      driver2: {
+        code: String(d2.code).toUpperCase().slice(0, 3),
+        name: String(d2.name || d2.code).slice(0, 50),
+        team: String(d2.team || "").slice(0, 50),
+        lapTime: typeof d2.lapTime === "string" ? d2.lapTime.slice(0, 20) : undefined,
+      },
+      deltaSeconds: delta,
+      sectorDeltas,
+      speedTrap,
+      circuit: typeof obj.circuit === "string" ? obj.circuit.slice(0, 100) : undefined,
+    };
+  }
+
+  if (kind === "stint") {
+    if (typeof obj.raceName !== "string" || !obj.driver || !Array.isArray(obj.stints)) return null;
+    const d = obj.driver as Record<string, unknown>;
+    const stints = (obj.stints as Record<string, unknown>[])
+      .map((s) => {
+        const c = String(s.compound || "MEDIUM").toUpperCase();
+        const validCompounds = ["SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET"] as const;
+        const compound = validCompounds.includes(c as (typeof validCompounds)[number]) ? (c as (typeof validCompounds)[number]) : "MEDIUM";
+        return {
+          compound,
+          laps: Math.max(1, Number(s.laps) || 1),
+          startLap: Math.max(1, Number(s.startLap) || 1),
+          endLap: Math.max(1, Number(s.endLap) || 1),
+          isNew: Boolean(s.isNew),
+        };
+      })
+      .slice(0, 6);
+
+    const totalLaps = typeof obj.totalLaps === "number" ? obj.totalLaps : stints.reduce((sum, s) => sum + s.laps, 0);
+
+    return {
+      kind: "stint",
+      raceName: obj.raceName.slice(0, 100),
+      driver: {
+        code: String(d.code || "DRV").toUpperCase().slice(0, 3),
+        name: String(d.name || d.code || "Driver").slice(0, 50),
+        team: String(d.team || "").slice(0, 50),
+      },
+      stints,
+      totalLaps,
+    };
+  }
+
+  if (kind === "win_probability") {
+    if (typeof obj.raceName !== "string" || !obj.leader) return null;
+    const l = obj.leader as Record<string, unknown>;
+    const leader = {
+      code: String(l.code || "DRV").toUpperCase().slice(0, 3),
+      name: String(l.name || l.code || "Driver").slice(0, 50),
+      team: String(l.team || "").slice(0, 50),
+      winProb: Math.min(1, Math.max(0, Number(l.winProb) || 0)),
+      podiumProb: Math.min(1, Math.max(0, Number(l.podiumProb) || 0)),
+    };
+    const contenders = Array.isArray(obj.contenders)
+      ? (obj.contenders as Record<string, unknown>[]).slice(0, 5).map((c) => ({
+          code: String(c.code || "DRV").toUpperCase().slice(0, 3),
+          name: String(c.name || c.code || "Driver").slice(0, 50),
+          team: String(c.team || "").slice(0, 50),
+          winProb: Math.min(1, Math.max(0, Number(c.winProb) || 0)),
+          podiumProb: Math.min(1, Math.max(0, Number(c.podiumProb) || 0)),
+        }))
+      : [];
+
+    return {
+      kind: "win_probability",
+      raceName: obj.raceName.slice(0, 100),
+      leader,
+      contenders,
+      simulationsCount: typeof obj.simulationsCount === "number" ? obj.simulationsCount : 10000,
+      headline: typeof obj.headline === "string" ? obj.headline.slice(0, 200) : undefined,
+    };
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------- Predictor Flairs & Reputation (Level 3.3)
+
+export type PredictorFlairTone = "amber" | "emerald" | "cyan" | "brand" | "purple";
+
+export type PredictorFlair = {
+  id: string;
+  label: string;
+  description: string;
+  tone: PredictorFlairTone;
+  icon?: string;
+};
+
 export function summarizePoll(raw: unknown, uid: string): PostPollView | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
