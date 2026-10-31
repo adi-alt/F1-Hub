@@ -1,11 +1,14 @@
 "use client";
 
 import { Activity, Disc, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import type { F1DataCard, StintDataCard, TelemetryDataCard, WinProbabilityDataCard } from "@/lib/communities";
 import { F1DataCardEmbed } from "./F1DataCardEmbed";
+
+const subscribeNothing = () => () => {};
 
 type CardTab = "telemetry" | "stint" | "probability";
 
@@ -84,32 +87,46 @@ export function F1DataCardModal({
   onClose: () => void;
   onSelect: (card: F1DataCard) => void;
 }) {
+  const isClient = useSyncExternalStore(
+    subscribeNothing,
+    () => true,
+    () => false,
+  );
   const [tab, setTab] = useState<CardTab>("telemetry");
   const [selectedTelemetry, setSelectedTelemetry] = useState<TelemetryDataCard>(TELEMETRY_PRESETS[0]);
   const [selectedStint, setSelectedStint] = useState<StintDataCard>(STINT_PRESETS[0]);
   const [selectedWinProb, setSelectedWinProb] = useState<WinProbabilityDataCard>(WIN_PROB_PRESETS[0]);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  if (!open || !isClient) return null;
 
   const currentCard: F1DataCard =
     tab === "telemetry" ? selectedTelemetry : tab === "stint" ? selectedStint : selectedWinProb;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="f1-card-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6"
     >
       {/* Backdrop */}
       <div
         aria-hidden
         onClick={onClose}
-        className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/85 backdrop-blur-md transition-opacity"
       />
 
       {/* Modal Dialog */}
-      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-card border border-white/12 bg-surface-1 shadow-2xl animate-in fade-in zoom-in-95 duration-fast">
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-card border border-white/15 bg-surface-0 shadow-2xl animate-in fade-in zoom-in-95 duration-fast">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
           <div className="flex items-center gap-2">
@@ -248,7 +265,8 @@ export function F1DataCardModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

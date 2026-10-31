@@ -8,7 +8,7 @@ import { timeAgo } from "@/lib/format";
 import { safeHttpUrl } from "@/lib/linkPreview";
 import { COMMENT_REACTIONS, type CommentReactionEmoji } from "@/lib/communities";
 import { Badge } from "@/components/ui/Badge";
-import { ConfirmButton } from "@/components/ui/ConfirmButton";
+import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Popover } from "@/components/ui/Popover";
 import { MENU_ITEM } from "@/components/ui/panel";
@@ -658,6 +658,7 @@ function CommentOverflowMenu({
   onError: (msg: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function remove(close: () => void) {
     setBusy(true);
@@ -665,6 +666,7 @@ function CommentOverflowMenu({
     const res = await fetch(`/api/posts/${postId}/comments/${commentId}`, { method: "DELETE" }).catch(() => null);
     setBusy(false);
     close();
+    setConfirmDelete(false);
     if (res?.ok) onDeleted();
     else onError("Couldn't delete it.");
   }
@@ -673,12 +675,15 @@ function CommentOverflowMenu({
     <Popover
       align="end"
       ariaLabel="Comment actions"
-      panelClassName="!min-w-44 p-1.5"
+      panelClassName={confirmDelete ? "!min-w-60 p-3" : "!min-w-44 p-1.5"}
       trigger={({ open, toggle, ref }) => (
         <button
           ref={ref}
           type="button"
-          onClick={toggle}
+          onClick={() => {
+            setConfirmDelete(false);
+            toggle();
+          }}
           aria-expanded={open}
           aria-label="More comment actions"
           className={`flex size-7 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
@@ -689,96 +694,125 @@ function CommentOverflowMenu({
         </button>
       )}
     >
-      {({ close }) => (
-        <div className="flex flex-col gap-0.5">
-          {canPin && onTogglePin && (
-            <button
-              type="button"
-              onClick={() => {
-                onTogglePin();
-                close();
-              }}
-              className={MENU_ITEM}
-            >
-              {pinned ? "Unpin comment" : "Pin to top"}
-            </button>
-          )}
-          {canAccept && onToggleAccept && (
-            <button
-              type="button"
-              onClick={() => {
-                onToggleAccept();
-                close();
-              }}
-              className={MENU_ITEM}
-            >
-              {accepted ? "Unmark answer" : "Mark as answer"}
-            </button>
-          )}
-          {hasReplies && (
-            <button
-              type="button"
-              onClick={() => {
-                onCollapse();
-                close();
-              }}
-              className={MENU_ITEM}
-            >
-              Collapse thread ({replyCount})
-            </button>
-          )}
-          {onShare && (
-            <button
-              type="button"
-              onClick={() => {
-                onShare();
-                close();
-              }}
-              className={MENU_ITEM}
-            >
-              Copy link
-            </button>
-          )}
-          {mine && (
-            <button
-              type="button"
-              onClick={() => {
-                onEdit();
-                close();
-              }}
-              className={MENU_ITEM}
-            >
-              Edit comment
-            </button>
-          )}
-          {canDelete && (
-            <ConfirmButton
-              onConfirm={() => void remove(close)}
-              question={mine ? "Delete?" : "Remove?"}
-              confirmLabel={mine ? "Delete" : "Remove"}
-              pending={busy}
-              className={`${MENU_ITEM} text-danger hover:text-danger`}
-            >
-              {mine ? "Delete comment" : "Remove comment"}
-            </ConfirmButton>
-          )}
-          {!mine &&
-            (reported ? (
-              <span className="px-2.5 py-2 text-body-sm text-tertiary">Reported</span>
-            ) : (
+      {({ close }) =>
+        confirmDelete ? (
+          <div className="flex flex-col gap-2">
+            <p className="text-body-sm font-semibold text-primary">
+              {mine ? "Delete comment?" : "Remove comment?"}
+            </p>
+            <p className="text-caption text-tertiary leading-relaxed">
+              {mine
+                ? "This comment and any replies will be permanently deleted."
+                : "Remove this comment from the community discussion."}
+            </p>
+            <div className="mt-1 flex items-center justify-end gap-2 pt-1 border-t border-white/8">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                loading={busy}
+                onClick={() => void remove(close)}
+              >
+                {mine ? "Delete" : "Remove"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {canPin && onTogglePin && (
               <button
                 type="button"
                 onClick={() => {
-                  onStartReport();
+                  onTogglePin();
                   close();
                 }}
                 className={MENU_ITEM}
               >
-                Report comment
+                {pinned ? "Unpin comment" : "Pin to top"}
               </button>
-            ))}
-        </div>
-      )}
+            )}
+            {canAccept && onToggleAccept && (
+              <button
+                type="button"
+                onClick={() => {
+                  onToggleAccept();
+                  close();
+                }}
+                className={MENU_ITEM}
+              >
+                {accepted ? "Unmark answer" : "Mark as answer"}
+              </button>
+            )}
+            {hasReplies && (
+              <button
+                type="button"
+                onClick={() => {
+                  onCollapse();
+                  close();
+                }}
+                className={MENU_ITEM}
+              >
+                Collapse thread ({replyCount})
+              </button>
+            )}
+            {onShare && (
+              <button
+                type="button"
+                onClick={() => {
+                  onShare();
+                  close();
+                }}
+                className={MENU_ITEM}
+              >
+                Copy link
+              </button>
+            )}
+            {mine && (
+              <button
+                type="button"
+                onClick={() => {
+                  onEdit();
+                  close();
+                }}
+                className={MENU_ITEM}
+              >
+                Edit comment
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className={`${MENU_ITEM} text-danger hover:bg-danger/10 hover:text-danger`}
+              >
+                {mine ? "Delete comment" : "Remove comment"}
+              </button>
+            )}
+            {!mine &&
+              (reported ? (
+                <span className="px-2.5 py-2 text-body-sm text-tertiary">Reported</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onStartReport();
+                    close();
+                  }}
+                  className={MENU_ITEM}
+                >
+                  Report comment
+                </button>
+              ))}
+          </div>
+        )
+      }
     </Popover>
   );
 }
