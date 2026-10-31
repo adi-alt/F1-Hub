@@ -173,7 +173,7 @@ export function PostDetailWindow({
             )}
           </div>
 
-          {post.gallery ? (
+          {post.gallery && post.gallery.length >= 2 ? (
             <PostGallery gallery={post.gallery} />
           ) : post.attachment && !thumbSrc ? (
             <a

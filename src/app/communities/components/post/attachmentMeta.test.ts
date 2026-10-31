@@ -29,6 +29,11 @@ test("kind comes from the mime the server validated, with the extension only as 
   // No mime (a pre-metadata row, or the GIF picker): fall back to the extension.
   assert.equal(attachmentKind(null, "report.xlsx"), "sheet");
   assert.equal(attachmentKind(null, "https://example.com/a/b.png?token=x"), "image");
+  assert.equal(
+    attachmentKind(null, "https://www.apexf1hub.com/api/posts/media/file?path=256082fb-b656-4c1c-8619-c7fefd52f0da%2F2f53a545-bd35-4483-a824-33f2148da61b.jpg"),
+    "image",
+  );
+  assert.equal(attachmentKind(null, "/api/posts/media/file?path=user%2Fdoc.pdf"), "pdf");
   // Unknown stays "file" rather than being guessed into the wrong renderer.
   assert.equal(attachmentKind(null, "archive.bin"), "file");
   assert.equal(attachmentKind(null, null), "file");

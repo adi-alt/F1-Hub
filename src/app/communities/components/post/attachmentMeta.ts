@@ -43,6 +43,26 @@ const BY_EXT: Record<string, AttachmentKind> = {
   m4a: "audio",
 };
 
+/** Extracts the extension from a URL or filename, properly decoding query params (e.g. ?path=...jpg). */
+export function extractAttachmentExtension(raw: string | null): string | null {
+  if (!raw) return null;
+  if (raw.includes("?path=") || raw.includes("&path=")) {
+    try {
+      const match = raw.match(/[?&]path=([^&#]+)/);
+      if (match && match[1]) {
+        const decoded = decodeURIComponent(match[1]);
+        const ext = decoded.split(".").pop()?.toLowerCase();
+        if (ext && ext !== decoded) return ext;
+      }
+    } catch {
+      // fallback
+    }
+  }
+  const clean = raw.split("?")[0].split("#")[0];
+  const ext = clean.split(".").pop()?.toLowerCase();
+  return ext && ext !== clean ? ext : null;
+}
+
 /** MIME first (it's what the server validated), extension as the fallback for rows that predate
  * metadata. Never guesses beyond those two - an unknown type is "file", which renders fine. */
 export function attachmentKind(mime: string | null, nameOrUrl: string | null): AttachmentKind {
@@ -53,7 +73,7 @@ export function attachmentKind(mime: string | null, nameOrUrl: string | null): A
     if (mime.startsWith("audio/")) return "audio";
     if (mime.startsWith("text/")) return "text";
   }
-  const ext = nameOrUrl?.split("?")[0].split(".").pop()?.toLowerCase();
+  const ext = extractAttachmentExtension(nameOrUrl);
   return (ext && BY_EXT[ext]) || "file";
 }
 
