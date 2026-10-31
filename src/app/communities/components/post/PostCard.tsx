@@ -241,7 +241,7 @@ export function PostCard({
       <Popover
         align="end"
         ariaLabel="Post actions"
-        panelClassName={menuView === "report" ? "w-72" : "w-44"}
+        panelClassName={menuView === "report" ? "w-72" : menuView === "delete" || menuView === "remove" || menuView === "lock" ? "w-64" : "w-44"}
         trigger={({ open, toggle, ref }) => (
           <button
             ref={ref}
