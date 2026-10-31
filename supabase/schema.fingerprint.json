@@ -254,6 +254,7 @@
   "group_posts.comments_locked_at": "timestamp with time zone null=YES default=",
   "group_posts.content": "text null=NO default=",
   "group_posts.created_at": "timestamp with time zone null=NO default=now()",
+  "group_posts.data_card": "jsonb null=YES default=",
   "group_posts.edited_at": "timestamp with time zone null=YES default=",
   "group_posts.f1_tags": "jsonb null=YES default=",
   "group_posts.gallery": "jsonb null=YES default=",

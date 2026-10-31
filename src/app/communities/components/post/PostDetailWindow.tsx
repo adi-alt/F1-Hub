@@ -19,6 +19,7 @@ import { PostGallery } from "./PostGallery";
 import { PollCard } from "./PollCard";
 import { SpoilerShield } from "./SpoilerShield";
 import { F1TagChip } from "./F1TagChip";
+import { F1DataCardEmbed } from "./F1DataCardEmbed";
 import type { PostCardData } from "./types";
 import { filterCommentTree, useComments, type CommentFilter, type LocalComment } from "./useComments";
 import { VoteControl } from "./VoteControl";
@@ -192,6 +193,7 @@ export function PostDetailWindow({
           ) : null}
 
           {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
+          {post.dataCard && <F1DataCardEmbed dataCard={post.dataCard} />}
         </SpoilerShield>
 
         {post.f1Tags && post.f1Tags.length > 0 && (

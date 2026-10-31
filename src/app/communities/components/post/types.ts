@@ -1,5 +1,5 @@
 import type { AvatarConfig } from "@/lib/avatar";
-import type { F1Tag, PostKind, PostPollView, PostSubscriptionState, PostTopComment } from "@/lib/communities";
+import type { F1DataCard, F1Tag, PostKind, PostPollView, PostSubscriptionState, PostTopComment, PredictorFlair } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { PostAttachment, PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
 import type { AuthorRecord, PostCallView } from "@/lib/supabase/postCalls";
@@ -53,6 +53,8 @@ export type PostCardData = {
   f1Tags?: F1Tag[] | null;
   /** Whether the post is flagged as containing spoilers (Level 3). */
   isSpoiler?: boolean;
+  /** Interactive F1 Telemetry / Simulation / Stint data card (Level 3.2). */
+  dataCard?: F1DataCard | null;
   /** When its author last edited it. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -61,4 +63,6 @@ export type PostCardData = {
   call?: PostCallView | null;
   /** The author's season record from their calls. */
   authorRecord?: AuthorRecord | null;
+  /** Verified predictor flairs & reputation badges (Level 3.3). */
+  authorFlairs?: PredictorFlair[] | null;
 };

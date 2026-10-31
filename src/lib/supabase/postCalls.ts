@@ -6,6 +6,8 @@ import { getRace, getRaceById, getRaceRoster } from "@/lib/supabase/races";
 import { parseUtcDateTime } from "@/lib/countdown";
 import { pickWeekend, sessionsOf } from "@/lib/communityWeekend";
 import { callRecord, callSession, describeCall, gradeCall, parseCall, type CallVerdict, type PostCall } from "@/lib/postCalls";
+import type { PredictorFlair } from "@/lib/communities";
+import { computePredictorFlairs } from "@/lib/predictorFlairs";
 import { ServiceError } from "@/services/errors";
 
 // Takes with receipts, the server half: which race a call can be made on, storing one with its post, and attaching
@@ -105,7 +107,9 @@ const surname = (name: string) => name.trim().split(/\s+/).slice(-1)[0] || name;
  * race belongs to. Grades use the cached race rows; names, the current drivers. Posts without a call are returned as
  * they are, with `call: null`.
  */
-export async function withCalls<T extends { id: string; userId: string }>(posts: T[]): Promise<(T & { call: PostCallView | null; authorRecord: AuthorRecord | null })[]> {
+export async function withCalls<T extends { id: string; userId: string }>(
+  posts: T[],
+): Promise<(T & { call: PostCallView | null; authorRecord: AuthorRecord | null; authorFlairs: PredictorFlair[] | null })[]> {
   if (!posts.length) return [];
   const rows = await readCalls(() =>
     supabaseAdmin
@@ -114,7 +118,7 @@ export async function withCalls<T extends { id: string; userId: string }>(posts:
       .in("post_id", posts.map((p) => p.id)),
   );
   if (!rows.length) {
-    return posts.map((p) => ({ ...p, call: null, authorRecord: null }));
+    return posts.map((p) => ({ ...p, call: null, authorRecord: null, authorFlairs: null }));
   }
   // Records: every call by these posts' authors in the seasons these calls are in (usually one).
   const authors = [...new Set(posts.map((p) => p.userId))];
@@ -135,10 +139,15 @@ export async function withCalls<T extends { id: string; userId: string }>(posts:
   const nameOf = (code: string) => names.get(code) ?? code;
 
   const recordByAuthor = new Map<string, AuthorRecord>();
+  const flairsByAuthor = new Map<string, PredictorFlair[]>();
   for (const author of authors) {
     const verdicts = historyRows.filter((r) => r.user_id === author).map((r) => gradeCall(toCall(r), raceById.get(r.race_id) ?? null));
     const rec = callRecord(verdicts);
-    if (rec.settled > 0 || verdicts.length > 0) recordByAuthor.set(author, rec);
+    if (rec.settled > 0 || verdicts.length > 0) {
+      recordByAuthor.set(author, rec);
+      const flairs = computePredictorFlairs({ authorRecord: rec, verdicts });
+      if (flairs.length > 0) flairsByAuthor.set(author, flairs);
+    }
   }
 
   const callByPost = new Map(rows.map((r) => [r.post_id, r]));
@@ -149,6 +158,7 @@ export async function withCalls<T extends { id: string; userId: string }>(posts:
       ...p,
       call: call ? { ...call, label: describeCall(call, nameOf), verdict: gradeCall(call, raceById.get(call.raceId) ?? null) } : null,
       authorRecord: recordByAuthor.get(p.userId) ?? null,
+      authorFlairs: flairsByAuthor.get(p.userId) ?? null,
     };
   });
 }

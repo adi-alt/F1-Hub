@@ -11,6 +11,7 @@ import type { PostCardData } from "./types";
 import type { SessionPhase } from "@/lib/communityWeekend";
 import { CallRecordBadge } from "./CallChip";
 import { AuthorProfilePopover } from "./AuthorProfilePopover";
+import { PredictorFlairsList } from "./PredictorFlair";
 
 /**
  * Who wrote a post, the way a social feed says it: the author's own photo, and one muted line
@@ -123,6 +124,7 @@ export function PostByline({ post, showGroup, roleLabel, pending, sessionTag }: 
         )}
       </AuthorProfilePopover>
       {post.authorRecord && <CallRecordBadge record={post.authorRecord} />}
+      {post.authorFlairs && <PredictorFlairsList flairs={post.authorFlairs} />}
       {roleLabel && <Badge tone="neutral">{roleLabel}</Badge>}
       {inCommunity && (
         <>

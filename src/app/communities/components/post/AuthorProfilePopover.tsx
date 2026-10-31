@@ -9,6 +9,8 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { groupHref } from "@/lib/routes";
+import { computePredictorFlairs } from "@/lib/predictorFlairs";
+import { PredictorFlairsList } from "./PredictorFlair";
 import type { AvatarConfig } from "@/lib/avatar";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { AuthorRecord } from "@/lib/supabase/postCalls";
@@ -225,6 +227,13 @@ export function AuthorProfilePopover({
                   <p className="truncate text-body-sm font-semibold text-primary">{authorName}</p>
                   <p className="text-caption text-tertiary">Apex Community Member</p>
                 </div>
+
+                {/* Verified Predictor Flairs (Level 3.3) */}
+                {authorRecord && (
+                  <div className="mt-2">
+                    <PredictorFlairsList flairs={computePredictorFlairs({ authorRecord })} size="md" />
+                  </div>
+                )}
 
                 {/* Season Call / Prediction stats if present */}
                 {authorRecord && totalCalls > 0 && (

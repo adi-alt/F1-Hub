@@ -4,12 +4,14 @@ import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import {
   COMMENT_REACTIONS,
   canDo,
+  parseF1DataCard,
   parseF1Tags,
   postKindsFor,
   summarizePoll,
   summarizeSubscription,
   type CommentReactionEmoji,
   type CommentReactionSummary,
+  type F1DataCard,
   type F1Tag,
   type F1TagCategory,
   type PostKind,
@@ -18,14 +20,17 @@ import {
   type PostPollView,
   type PostSubscriptionState,
   type PostTopComment,
+  type PredictorFlair,
 } from "@/lib/communities";
 export {
   COMMENT_REACTIONS,
+  parseF1DataCard,
   parseF1Tags,
   summarizePoll,
   summarizeSubscription,
   type CommentReactionEmoji,
   type CommentReactionSummary,
+  type F1DataCard,
   type F1Tag,
   type F1TagCategory,
   type PostPollInput,
@@ -33,6 +38,7 @@ export {
   type PostPollView,
   type PostSubscriptionState,
   type PostTopComment,
+  type PredictorFlair,
 };
 import { getMemberRole, joinGroup, requireMember, type GroupRole } from "@/lib/supabase/groups";
 import { allowedMediaUrl, isAllowedMediaUrl, storedMediaUrl } from "@/lib/mediaUrls";
@@ -94,6 +100,8 @@ export type GroupPost = {
   f1Tags?: F1Tag[] | null;
   /** Whether the post contains spoilers (Level 3). */
   isSpoiler?: boolean;
+  /** Interactive F1 Telemetry / Simulation / Stint data card (Level 3.2). */
+  dataCard?: F1DataCard | null;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -102,6 +110,8 @@ export type GroupPost = {
   call?: PostCallView | null;
   /** The author's season record from their calls. */
   authorRecord?: AuthorRecord | null;
+  /** Verified predictor flairs (Level 3.3). */
+  authorFlairs?: PredictorFlair[] | null;
 };
 
 export function summarizeCommentReactions(raw: unknown, uid: string): CommentReactionSummary[] {
@@ -188,6 +198,8 @@ export type FeedPost = {
   f1Tags?: F1Tag[] | null;
   /** Whether the post contains spoilers (Level 3). */
   isSpoiler?: boolean;
+  /** Interactive F1 Telemetry / Simulation / Stint data card (Level 3.2). */
+  dataCard?: F1DataCard | null;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -196,6 +208,8 @@ export type FeedPost = {
   call?: PostCallView | null;
   /** The author's season record from their calls. */
   authorRecord?: AuthorRecord | null;
+  /** Verified predictor flairs (Level 3.3). */
+  authorFlairs?: PredictorFlair[] | null;
 };
 
 /** Builds the attachment from whatever metadata the row actually has. A row with a media_url but
@@ -424,6 +438,7 @@ export async function createPost(
     scheduledAt?: string | null;
     f1Tags?: F1Tag[] | null;
     isSpoiler?: boolean;
+    dataCard?: F1DataCard | null;
   },
 ): Promise<{ id: string; status: PostStatus; scheduledAt: string | null }> {
   const trimmedContent = input.content.trim();
@@ -441,6 +456,7 @@ export async function createPost(
   const storedPoll = buildStoredPoll(input.poll);
   const storedGallery = buildStoredGallery(input.gallery);
   const storedF1Tags = parseF1Tags(input.f1Tags);
+  const storedDataCard = parseF1DataCard(input.dataCard);
   const isSpoiler = Boolean(input.isSpoiler);
 
   let status: PostStatus = "published";
@@ -502,20 +518,22 @@ export async function createPost(
     ...(storedPoll ? { poll: storedPoll } : {}),
     ...(storedGallery ? { gallery: storedGallery } : {}),
     ...(storedF1Tags ? { f1_tags: storedF1Tags } : {}),
+    ...(storedDataCard ? { data_card: storedDataCard } : {}),
     ...(isSpoiler ? { is_spoiler: true } : {}),
   };
 
   let { data, error } = await supabaseAdmin.from("group_posts").insert(extendedPayload).select("id").single();
   if (
     error &&
-    (storedPoll || storedGallery || storedF1Tags || isSpoiler) &&
+    (storedPoll || storedGallery || storedF1Tags || storedDataCard || isSpoiler) &&
     (error.code === "42703" ||
       error.message.includes("poll") ||
       error.message.includes("gallery") ||
       error.message.includes("f1_tags") ||
+      error.message.includes("data_card") ||
       error.message.includes("is_spoiler"))
   ) {
-    // Try preserving gallery and poll first if only f1_tags/is_spoiler was missing
+    // Try preserving gallery and poll first if only data_card/f1_tags/is_spoiler was missing
     const midPayload: Record<string, unknown> = {
       ...basePayload,
       ...(storedPoll ? { poll: storedPoll } : {}),
@@ -733,6 +751,7 @@ export async function listPosts(
     subscription: summarizeSubscription((p as Record<string, unknown>).subscriptions, uid),
     f1Tags: parseF1Tags((p as Record<string, unknown>).f1_tags),
     isSpoiler: Boolean((p as Record<string, unknown>).is_spoiler),
+    dataCard: parseF1DataCard((p as Record<string, unknown>).data_card),
   }));
 
   if (ranked) {
@@ -818,6 +837,7 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     subscription: summarizeSubscription((post as Record<string, unknown>).subscriptions, uid),
     f1Tags: parseF1Tags((post as Record<string, unknown>).f1_tags),
     isSpoiler: Boolean((post as Record<string, unknown>).is_spoiler),
+    dataCard: parseF1DataCard((post as Record<string, unknown>).data_card),
   };
   return (await withCalls([view]))[0];
 }
@@ -1067,6 +1087,7 @@ export async function listFeedPosts(
       subscription: summarizeSubscription((p as Record<string, unknown>).subscriptions, uid),
       f1Tags: parseF1Tags((p as Record<string, unknown>).f1_tags),
       isSpoiler: Boolean((p as Record<string, unknown>).is_spoiler),
+      dataCard: parseF1DataCard((p as Record<string, unknown>).data_card),
     };
   });
   return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };

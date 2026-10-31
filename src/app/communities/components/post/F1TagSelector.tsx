@@ -1,41 +1,54 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Flag, Plus, ShieldAlert, Sparkles, User, Users } from "lucide-react";
+import { useState, useRef, useEffect, type RefObject } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "motion/react";
+import { Flag, Sparkles, User, Users, X } from "lucide-react";
 import { F1_DRIVER_TAGS, F1_SESSION_TAGS, F1_TEAM_TAGS, type F1Tag, type F1TagCategory } from "@/lib/communities";
 import { F1TagChip } from "./F1TagChip";
+import { useAnchoredPanel } from "./usePanelDirection";
 
 const MAX_TAGS = 3;
 
 export function F1TagSelector({
+  anchorRef,
   tags,
   onChange,
-  isSpoiler,
-  onSpoilerChange,
+  onClose,
   upcomingRaces = [],
 }: {
+  anchorRef: RefObject<HTMLElement | null>;
   tags: F1Tag[];
   onChange: (tags: F1Tag[]) => void;
-  isSpoiler: boolean;
-  onSpoilerChange: (isSpoiler: boolean) => void;
+  onClose: () => void;
   upcomingRaces?: { id?: string; raceId?: string; round?: number; name: string }[];
 }) {
-  const [open, setOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<F1TagCategory>("session");
   const [search, setSearch] = useState("");
-  const popoverRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setOpen(false);
+      const target = e.target as Node;
+      if (
+        rootRef.current &&
+        !rootRef.current.contains(target) &&
+        anchorRef.current &&
+        !anchorRef.current.contains(target)
+      ) {
+        onClose();
       }
     }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
     }
-  }, [open]);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose, anchorRef]);
 
   const gpTags: F1Tag[] = upcomingRaces.map((r) => ({
     category: "grand_prix",
@@ -66,156 +79,139 @@ export function F1TagSelector({
     }
   }
 
-  function removeTag(tag: F1Tag) {
-    onChange(tags.filter((t) => !(t.category === tag.category && t.id === tag.id)));
-  }
+  const style = useAnchoredPanel(anchorRef, 300, 360);
+  if (typeof document === "undefined" || !style) return null;
 
-  return (
-    <div className="space-y-2">
-      {/* Attached Tags + Add Tag + Spoiler Toggle */}
-      <div className="flex flex-wrap items-center gap-1.5 text-caption">
-        {tags.map((tag) => (
-          <F1TagChip key={`${tag.category}-${tag.id}`} tag={tag} onRemove={() => removeTag(tag)} />
-        ))}
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        ref={rootRef}
+        initial={{ opacity: 0, y: 4, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 4, scale: 0.98 }}
+        transition={{ duration: 0.12 }}
+        style={style}
+        className="z-[250] flex flex-col w-[300px] rounded-card border border-white/12 bg-surface-1/95 p-3 shadow-2xl backdrop-blur-xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/8 pb-2">
+          <div className="min-w-0">
+            <span className="text-body-sm font-semibold text-primary">Tag F1 Topic</span>
+            <span className="ml-2 text-caption text-tertiary">({tags.length}/{MAX_TAGS})</span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close tag picker"
+            className="rounded-control p-1 text-tertiary hover:bg-white/[0.08] hover:text-primary transition-colors"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
 
-        {tags.length < MAX_TAGS && (
-          <div className="relative inline-block" ref={popoverRef}>
-            <button
-              type="button"
-              onClick={() => setOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1 rounded-control border border-dashed border-white/18 bg-white/[0.03] px-2 py-0.5 text-caption text-secondary hover:border-white/35 hover:bg-white/[0.08] hover:text-primary transition-colors"
-              aria-expanded={open}
-            >
-              <Plus className="size-3" />
-              <span>Tag F1 entity</span>
-              <ChevronDown className="size-3 text-tertiary" />
-            </button>
+        {/* Category Tabs */}
+        <div className="mt-2.5 grid grid-cols-4 gap-1 p-0.5 bg-black/30 rounded-lg text-caption">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCategory("session");
+              setSearch("");
+            }}
+            className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
+              activeCategory === "session" ? "bg-white/15 text-primary font-medium shadow-sm" : "text-secondary hover:text-primary"
+            }`}
+          >
+            <Flag className="size-2.5" />
+            <span>Session</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCategory("driver");
+              setSearch("");
+            }}
+            className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
+              activeCategory === "driver" ? "bg-white/15 text-primary font-medium shadow-sm" : "text-secondary hover:text-primary"
+            }`}
+          >
+            <User className="size-2.5" />
+            <span>Driver</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCategory("team");
+              setSearch("");
+            }}
+            className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
+              activeCategory === "team" ? "bg-white/15 text-primary font-medium shadow-sm" : "text-secondary hover:text-primary"
+            }`}
+          >
+            <Users className="size-2.5" />
+            <span>Team</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCategory("grand_prix");
+              setSearch("");
+            }}
+            className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
+              activeCategory === "grand_prix" ? "bg-white/15 text-primary font-medium shadow-sm" : "text-secondary hover:text-primary"
+            }`}
+          >
+            <Sparkles className="size-2.5" />
+            <span>GP</span>
+          </button>
+        </div>
 
-            {open && (
-              <div className="absolute left-0 bottom-full mb-1.5 z-40 w-72 rounded-xl border border-white/12 bg-surface-1/95 p-2 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100">
-                <div className="flex items-center justify-between border-b border-white/8 pb-1.5 mb-2 px-1">
-                  <span className="text-caption font-semibold text-primary">Tag F1 Topic ({tags.length}/3)</span>
-                  <span className="text-[11px] text-tertiary">Select up to 3</span>
-                </div>
-
-                {/* Category Tabs */}
-                <div className="grid grid-cols-4 gap-1 p-0.5 bg-black/30 rounded-lg mb-2 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory("session");
-                      setSearch("");
-                    }}
-                    className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
-                      activeCategory === "session" ? "bg-white/15 text-primary font-medium" : "text-secondary hover:text-primary"
-                    }`}
-                  >
-                    <Flag className="size-2.5" />
-                    <span>Session</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory("driver");
-                      setSearch("");
-                    }}
-                    className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
-                      activeCategory === "driver" ? "bg-white/15 text-primary font-medium" : "text-secondary hover:text-primary"
-                    }`}
-                  >
-                    <User className="size-2.5" />
-                    <span>Driver</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory("team");
-                      setSearch("");
-                    }}
-                    className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
-                      activeCategory === "team" ? "bg-white/15 text-primary font-medium" : "text-secondary hover:text-primary"
-                    }`}
-                  >
-                    <Users className="size-2.5" />
-                    <span>Team</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveCategory("grand_prix");
-                      setSearch("");
-                    }}
-                    className={`flex items-center justify-center gap-1 py-1 rounded-md transition-colors ${
-                      activeCategory === "grand_prix" ? "bg-white/15 text-primary font-medium" : "text-secondary hover:text-primary"
-                    }`}
-                  >
-                    <Sparkles className="size-2.5" />
-                    <span>GP</span>
-                  </button>
-                </div>
-
-                {/* Search input for drivers/teams */}
-                {(activeCategory === "driver" || activeCategory === "team") && (
-                  <div className="mb-2">
-                    <input
-                      type="text"
-                      placeholder={`Search ${activeCategory}...`}
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      className="w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-caption text-primary placeholder-tertiary focus:border-brand focus:outline-none"
-                    />
-                  </div>
-                )}
-
-                {/* Tags List */}
-                <div className="max-h-48 overflow-y-auto space-y-1 p-0.5">
-                  {filteredTags.length === 0 ? (
-                    <p className="p-2 text-center text-caption text-tertiary">No matching {activeCategory}s</p>
-                  ) : (
-                    filteredTags.map((tag) => {
-                      const selected = tags.some((t) => t.category === tag.category && t.id === tag.id);
-                      return (
-                        <button
-                          key={`${tag.category}-${tag.id}`}
-                          type="button"
-                          disabled={!selected && tags.length >= MAX_TAGS}
-                          onClick={() => toggleTag(tag)}
-                          className={`w-full flex items-center justify-between rounded-lg px-2 py-1 text-caption transition-colors ${
-                            selected
-                              ? "bg-brand/20 text-brand font-medium border border-brand/40"
-                              : tags.length >= MAX_TAGS
-                                ? "opacity-40 cursor-not-allowed text-secondary"
-                                : "text-secondary hover:bg-white/[0.08] hover:text-primary"
-                          }`}
-                        >
-                          <F1TagChip tag={tag} size="xs" />
-                          <span className="text-[11px] text-tertiary">{selected ? "Selected" : "+ Add"}</span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
+        {/* Search input for drivers/teams/GPs */}
+        {(activeCategory === "driver" || activeCategory === "team" || activeCategory === "grand_prix") && (
+          <div className="mt-2">
+            <input
+              type="text"
+              placeholder={`Search ${activeCategory === "grand_prix" ? "Grand Prix" : activeCategory}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-control border border-white/10 bg-white/[0.04] px-2.5 py-1 text-caption text-primary placeholder-tertiary focus:border-brand focus:outline-none"
+            />
           </div>
         )}
 
-        {/* Spoiler Shield Checkbox / Button */}
-        <button
-          type="button"
-          onClick={() => onSpoilerChange(!isSpoiler)}
-          aria-pressed={isSpoiler}
-          className={`inline-flex items-center gap-1.5 rounded-control px-2 py-0.5 text-caption font-medium transition-colors ml-auto ${
-            isSpoiler
-              ? "bg-amber-500/20 border border-amber-500/40 text-amber-300"
-              : "border border-white/10 bg-white/[0.03] text-secondary hover:border-white/20 hover:text-primary"
-          }`}
-          title="Blur post content until clicked by the reader"
-        >
-          <ShieldAlert className={`size-3.5 ${isSpoiler ? "text-amber-400" : "text-secondary"}`} />
-          <span>Spoiler Shield {isSpoiler ? "ON" : ""}</span>
-        </button>
-      </div>
-    </div>
+        {/* Tags List */}
+        <div className="mt-2 max-h-48 overflow-y-auto space-y-1 pr-0.5">
+          {filteredTags.length === 0 ? (
+            <p className="p-3 text-center text-caption text-tertiary">No matching {activeCategory}s</p>
+          ) : (
+            filteredTags.map((tag) => {
+              const selected = tags.some((t) => t.category === tag.category && t.id === tag.id);
+              return (
+                <button
+                  key={`${tag.category}-${tag.id}`}
+                  type="button"
+                  disabled={!selected && tags.length >= MAX_TAGS}
+                  onClick={() => toggleTag(tag)}
+                  className={`w-full flex items-center justify-between rounded-control px-2.5 py-1.5 text-caption transition-colors ${
+                    selected
+                      ? "bg-brand/15 text-brand font-medium border border-brand/35"
+                      : tags.length >= MAX_TAGS
+                        ? "opacity-40 cursor-not-allowed text-secondary"
+                        : "text-secondary hover:bg-white/[0.07] hover:text-primary"
+                  }`}
+                >
+                  <F1TagChip tag={tag} size="xs" />
+                  <span className="text-caption text-tertiary">{selected ? "Selected" : "+ Add"}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <p className="mt-2 text-center text-caption text-tertiary">
+          Tagged posts can be filtered by community members.
+        </p>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
   );
 }

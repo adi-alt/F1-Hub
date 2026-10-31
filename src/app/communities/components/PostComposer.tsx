@@ -3,11 +3,11 @@
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, Target, Trash2, X, type LucideIcon } from "lucide-react";
+import { Activity, BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlightlySmiling, Image, ImagePlay, Plus, ShieldAlert, Tag, Target, Trash2, X, type LucideIcon } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
-import { canDo, postKindsFor, type F1Tag } from "@/lib/communities";
+import { canDo, postKindsFor, type F1DataCard, type F1Tag } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
 import { PostAttachment, type AttachmentView } from "./post/PostAttachment";
@@ -23,8 +23,11 @@ import { EmojiPicker } from "./post/EmojiPicker";
 import { GifPicker } from "./post/GifPicker";
 import { MentionAutocomplete } from "./post/MentionAutocomplete";
 import { F1TagSelector } from "./post/F1TagSelector";
+import { F1TagChip } from "./post/F1TagChip";
+import { F1DataCardEmbed } from "./post/F1DataCardEmbed";
+import { F1DataCardModal } from "./post/F1DataCardModal";
 
-const IMAGE_MAX_BYTES = 500 * 1024;
+const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 const OTHER_MAX_BYTES = 2 * 1024 * 1024;
 // mime -> max bytes for that mime - mirrors /api/posts/media/route.ts's own map exactly (client-
 // side pre-check, not the real enforcement - that's still the server + the bucket's own cap).
@@ -187,6 +190,8 @@ export function PostComposer({
   const pollIncomplete = pollOpen && validPollOptions.length < 2;
   const [f1Tags, setF1Tags] = useState<F1Tag[]>([]);
   const [isSpoiler, setIsSpoiler] = useState(false);
+  const [dataCard, setDataCard] = useState<F1DataCard | null>(null);
+  const [showDataCardModal, setShowDataCardModal] = useState(false);
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
   // that community's own permission map, through the exact helper createPrediction uses
@@ -200,10 +205,12 @@ export function PostComposer({
   const canOpenPrediction = upcomingRaces.length > 0 && predictionCommunities.length > 0;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  // What the Emoji and GIF panels anchor to: each its own button. They're portaled out of this component (the
+  // What the Emoji, GIF, and Tag panels anchor to: each its own button. They're portaled out of this component (the
   // centre column's scroll container would otherwise clip them), so they measure a real element.
   const gifRef = useRef<HTMLButtonElement>(null);
   const emojiRef = useRef<HTMLButtonElement>(null);
+  const tagRef = useRef<HTMLButtonElement>(null);
+  const [showTags, setShowTags] = useState(false);
   const draftLoaded = useRef(false);
   const [draftRestored, setDraftRestored] = useState(false);
 
@@ -264,7 +271,7 @@ export function PostComposer({
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
   const canPredict = !!targetGroup && postKindsFor(targetGroup.communityType, targetGroup.features).includes("prediction");
-  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen || pollOpen || gallery.length > 0;
+  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen || pollOpen || gallery.length > 0 || !!dataCard;
 
   // A blob: URL (createObjectURL below) holds its referenced data in memory until explicitly
   // revoked or the document unloads - real, if minor, for a composer someone can attach/remove
@@ -297,6 +304,9 @@ export function PostComposer({
     setDraftRestored(false);
     setF1Tags([]);
     setIsSpoiler(false);
+    setShowTags(false);
+    setDataCard(null);
+    setShowDataCardModal(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
@@ -309,7 +319,8 @@ export function PostComposer({
       gallery.length > 0 ||
       (pollOpen && validPollOptions.length > 0) ||
       f1Tags.length > 0 ||
-      isSpoiler
+      isSpoiler ||
+      dataCard
     ) {
       setConfirmDiscard(true);
       return;
@@ -324,7 +335,7 @@ export function PostComposer({
       return null;
     }
     if (file.size > maxBytes) {
-      const limitLabel = maxBytes === IMAGE_MAX_BYTES ? "500KB" : "2MB";
+      const limitLabel = "2MB";
       setMediaError(`"${file.name}" exceeds the ${limitLabel} limit.`);
       return null;
     }
@@ -560,6 +571,7 @@ export function PostComposer({
         call: hasCall && callableRace && callDraft ? { raceId: callableRace.raceId, ...callDraft } : undefined,
         f1Tags: f1Tags.length > 0 ? f1Tags : undefined,
         isSpoiler: isSpoiler || undefined,
+        dataCard: dataCard || undefined,
       }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
@@ -830,27 +842,30 @@ export function PostComposer({
           {gallery.length >= 2 && (
             <div className="space-y-1.5 pl-11 pt-2">
               <div className="flex items-center justify-between text-caption text-secondary">
-                <span>{gallery.length} of 4 photos attached</span>
+                <span className="font-medium text-primary">{gallery.length} of 4 photos attached</span>
                 {gallery.length < 4 && (
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="rounded-control text-brand hover:underline"
+                    className="rounded-control text-brand font-medium hover:underline"
                   >
-                    + Add more
+                    + Add more photos
                   </button>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className={`grid gap-2 overflow-hidden rounded-lg ${gallery.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-4"}`}>
                 {gallery.map((item, idx) => (
-                  <div key={`${item.url}-${idx}`} className="relative aspect-[4/3] overflow-hidden rounded-control border border-white/10 bg-black/20">
+                  <div key={`${item.url}-${idx}`} className="group relative aspect-[4/3] overflow-hidden rounded-control border border-white/10 bg-black/20">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={item.thumbUrl ?? item.url} alt={item.name ?? `Photo ${idx + 1}`} className="size-full object-cover" />
+                    <div className="absolute bottom-1.5 left-1.5 rounded-control bg-black/70 px-1.5 py-0.5 text-caption font-semibold text-white/90 backdrop-blur-sm">
+                      {idx + 1}/{gallery.length}
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeGalleryItem(idx)}
                       aria-label={`Remove photo ${idx + 1}`}
-                      className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-control bg-black/80 text-white transition-colors hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
+                      className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-black/75 text-white transition-colors hover:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring"
                     >
                       <Icon icon={X} size={16} />
                     </button>
@@ -867,6 +882,16 @@ export function PostComposer({
                 // appear in the feed.
                 <div className="max-w-full">
                   <PostAttachment attachment={attachment} onRemove={removeMedia} />
+                  {attachment.mime?.startsWith("image/") && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-1.5 inline-flex items-center gap-1 text-caption text-secondary hover:text-brand transition-colors"
+                    >
+                      <Icon icon={Plus} size={16} />
+                      <span>Add another photo (turn into gallery)</span>
+                    </button>
+                  )}
                   {uploadingMedia && <p className="mt-1 text-caption text-tertiary">Uploading…</p>}
                 </div>
               )}
@@ -882,21 +907,81 @@ export function PostComposer({
             </div>
           )}
 
-          {isOpen && (
+          {uploadingMedia && gallery.length === 0 && !attachment && (
             <div className="pl-11 pt-2">
-              <F1TagSelector
-                tags={f1Tags}
-                onChange={setF1Tags}
-                isSpoiler={isSpoiler}
-                onSpoilerChange={setIsSpoiler}
-                upcomingRaces={upcomingRaces}
-              />
+              <div className="flex items-center gap-2 rounded-control border border-white/10 bg-white/[0.03] px-3 py-2 text-caption text-secondary">
+                <span className="text-brand">⏳</span>
+                <span>Uploading photo…</span>
+              </div>
+            </div>
+          )}
+
+          {/* Active F1 Entity Tags */}
+          {f1Tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 pl-11 pt-2 text-caption">
+              <span className="text-caption font-semibold uppercase tracking-wider text-tertiary">Topics:</span>
+              {f1Tags.map((tag) => (
+                <F1TagChip
+                  key={`${tag.category}-${tag.id}`}
+                  tag={tag}
+                  onRemove={() => setF1Tags((prev) => prev.filter((t) => !(t.category === tag.category && t.id === tag.id)))}
+                />
+              ))}
+              {f1Tags.length < 3 && (
+                <button
+                  type="button"
+                  onClick={() => setShowTags(true)}
+                  className="inline-flex items-center gap-1 rounded-control border border-dashed border-white/20 bg-white/[0.03] px-2 py-0.5 text-caption text-secondary hover:border-white/35 hover:text-primary transition-colors"
+                >
+                  <Icon icon={Plus} size={16} />
+                  <span>Add</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Spoiler Shield Active Explainer Banner */}
+          {isSpoiler && (
+            <div className="pl-11 pt-2">
+              <div className="flex items-center justify-between gap-3 rounded-control border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-caption text-amber-200">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Icon icon={ShieldAlert} size={16} className="text-amber-400 shrink-0" />
+                  <p className="min-w-0 flex-1 text-caption text-amber-200 leading-snug">
+                    <strong className="font-semibold text-amber-300">Spoiler Shield ON:</strong> Blurs post content & photos in feeds with a click-to-reveal barrier to protect race & qualifying results for fans watching on replay.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSpoiler(false)}
+                  className="shrink-0 rounded-control px-2 py-0.5 text-caption font-semibold text-amber-300 hover:text-amber-100 hover:bg-amber-500/20 transition-colors"
+                >
+                  Turn off
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Active F1 Data Card Preview (Level 3.2) */}
+          {dataCard && (
+            <div className="pl-11 pt-2">
+              <div className="relative">
+                <F1DataCardEmbed dataCard={dataCard} />
+                <button
+                  type="button"
+                  onClick={() => setDataCard(null)}
+                  title="Remove data card"
+                  aria-label="Remove data card"
+                  className="absolute right-2.5 top-6 flex size-6 items-center justify-center rounded-full bg-surface-2 text-secondary shadow-md hover:bg-surface-3 hover:text-primary transition-colors"
+                >
+                  <Icon icon={X} size={16} className="size-3.5" />
+                </button>
+              </div>
             </div>
           )}
 
           {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
           <div className="mt-1.5 flex flex-wrap items-center gap-0.5 pl-9">
-            <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photo" />
+            <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photos (up to 4)" />
             <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
             <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
             <ToolButton
@@ -911,6 +996,31 @@ export function PostComposer({
               active={pollOpen}
               icon={BarChart2}
               label="Poll"
+            />
+            <ToolButton
+              ref={tagRef}
+              onClick={() => setShowTags((v) => !v)}
+              active={showTags || f1Tags.length > 0}
+              icon={Tag}
+              label={f1Tags.length > 0 ? `F1 Topics (${f1Tags.length}/3)` : "Tag F1 topic (driver, team, session, GP)"}
+            />
+            <ToolButton
+              onClick={() => setIsSpoiler((v) => !v)}
+              active={isSpoiler}
+              activeTone="amber"
+              icon={ShieldAlert}
+              label={
+                isSpoiler
+                  ? "Spoiler Shield ON (click to remove)"
+                  : "Spoiler Shield: Blur post in feed to hide race results & outcomes until clicked"
+              }
+            />
+            <ToolButton
+              onClick={() => setShowDataCardModal(true)}
+              active={!!dataCard}
+              activeTone="cyan"
+              icon={Activity}
+              label={dataCard ? `F1 Data: ${dataCard.kind} attached` : "Attach F1 Data Card (Telemetry, Stints, Win Odds)"}
             />
             <ComposeAssist draft={content} onReplace={setContent} />
             {canPredict && <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={Compass} label="Prediction" />}
@@ -997,6 +1107,20 @@ export function PostComposer({
                 onClose={() => setShowGif(false)}
               />
             )}
+            {showTags && (
+              <F1TagSelector
+                anchorRef={tagRef}
+                tags={f1Tags}
+                onChange={setF1Tags}
+                onClose={() => setShowTags(false)}
+                upcomingRaces={upcomingRaces}
+              />
+            )}
+            <F1DataCardModal
+              open={showDataCardModal}
+              onClose={() => setShowDataCardModal(false)}
+              onSelect={(card) => setDataCard(card)}
+            />
           </AnimatePresence>
         </>
       )}
@@ -1011,12 +1135,14 @@ function ToolButton({
   icon,
   label,
   active,
+  activeTone = "default",
 }: {
   ref?: React.Ref<HTMLButtonElement>;
   onClick: () => void;
   icon: LucideIcon;
   label: string;
   active?: boolean;
+  activeTone?: "default" | "amber" | "cyan";
 }) {
   return (
     <button
@@ -1027,7 +1153,13 @@ function ToolButton({
       aria-label={label}
       title={label}
       className={`flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-        active ? "bg-white/[0.1] text-primary" : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
+        active
+          ? activeTone === "amber"
+            ? "border border-amber-500/40 bg-amber-500/20 text-amber-300"
+            : activeTone === "cyan"
+              ? "border border-cyan-500/40 bg-cyan-500/20 text-cyan-300"
+              : "bg-white/[0.1] text-primary"
+          : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
       }`}
     >
       <Icon icon={icon} size={16} />

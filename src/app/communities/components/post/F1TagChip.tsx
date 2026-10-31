@@ -26,7 +26,7 @@ export function F1TagChip({
 
   const sizeClasses =
     size === "xs"
-      ? "text-[11px] h-5 px-1.5 gap-1"
+      ? "text-caption h-5 px-1.5 gap-1"
       : size === "sm"
         ? "text-caption h-6 px-2 gap-1.5"
         : "text-body h-7 px-2.5 gap-2";
