@@ -4,11 +4,14 @@ import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 import {
   COMMENT_REACTIONS,
   canDo,
+  parseF1Tags,
   postKindsFor,
   summarizePoll,
   summarizeSubscription,
   type CommentReactionEmoji,
   type CommentReactionSummary,
+  type F1Tag,
+  type F1TagCategory,
   type PostKind,
   type PostPollInput,
   type PostPollOption,
@@ -18,10 +21,13 @@ import {
 } from "@/lib/communities";
 export {
   COMMENT_REACTIONS,
+  parseF1Tags,
   summarizePoll,
   summarizeSubscription,
   type CommentReactionEmoji,
   type CommentReactionSummary,
+  type F1Tag,
+  type F1TagCategory,
   type PostPollInput,
   type PostPollOption,
   type PostPollView,
@@ -84,6 +90,10 @@ export type GroupPost = {
   topComment?: PostTopComment | null;
   /** Viewer's notification subscription state for this post ("default" | "following" | "muted"). */
   subscription?: PostSubscriptionState;
+  /** Structured F1 entity tags (Level 3). */
+  f1Tags?: F1Tag[] | null;
+  /** Whether the post contains spoilers (Level 3). */
+  isSpoiler?: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -174,6 +184,10 @@ export type FeedPost = {
   topComment?: PostTopComment | null;
   /** Viewer's notification subscription state for this post ("default" | "following" | "muted"). */
   subscription?: PostSubscriptionState;
+  /** Structured F1 entity tags (Level 3). */
+  f1Tags?: F1Tag[] | null;
+  /** Whether the post contains spoilers (Level 3). */
+  isSpoiler?: boolean;
   /** When its author last edited it, null if never. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */
@@ -408,6 +422,8 @@ export async function createPost(
     poll?: PostPollInput | null;
     kind?: PostKind;
     scheduledAt?: string | null;
+    f1Tags?: F1Tag[] | null;
+    isSpoiler?: boolean;
   },
 ): Promise<{ id: string; status: PostStatus; scheduledAt: string | null }> {
   const trimmedContent = input.content.trim();
@@ -424,6 +440,8 @@ export async function createPost(
   }
   const storedPoll = buildStoredPoll(input.poll);
   const storedGallery = buildStoredGallery(input.gallery);
+  const storedF1Tags = parseF1Tags(input.f1Tags);
+  const isSpoiler = Boolean(input.isSpoiler);
 
   let status: PostStatus = "published";
   // A post's kind must be one this community actually offers - a Photography community can't be
@@ -480,10 +498,20 @@ export async function createPost(
     ...basePayload,
     ...(storedPoll ? { poll: storedPoll } : {}),
     ...(storedGallery ? { gallery: storedGallery } : {}),
+    ...(storedF1Tags ? { f1_tags: storedF1Tags } : {}),
+    ...(isSpoiler ? { is_spoiler: true } : {}),
   };
 
   let { data, error } = await supabaseAdmin.from("group_posts").insert(extendedPayload).select("id").single();
-  if (error && (storedPoll || storedGallery) && (error.code === "42703" || error.message.includes("poll") || error.message.includes("gallery"))) {
+  if (
+    error &&
+    (storedPoll || storedGallery || storedF1Tags || isSpoiler) &&
+    (error.code === "42703" ||
+      error.message.includes("poll") ||
+      error.message.includes("gallery") ||
+      error.message.includes("f1_tags") ||
+      error.message.includes("is_spoiler"))
+  ) {
     ({ data, error } = await supabaseAdmin.from("group_posts").insert(basePayload).select("id").single());
   }
   if (error || !data) throw error ?? new ServiceError("Could not create post.", 500);
@@ -688,6 +716,8 @@ export async function listPosts(
     answered: answeredPostIds.has(p.id as string),
     topComment: topCommentByPostId.get(p.id as string) ?? null,
     subscription: summarizeSubscription((p as Record<string, unknown>).subscriptions, uid),
+    f1Tags: parseF1Tags((p as Record<string, unknown>).f1_tags),
+    isSpoiler: Boolean((p as Record<string, unknown>).is_spoiler),
   }));
 
   if (ranked) {
@@ -771,6 +801,8 @@ export async function getPostById(postId: string, uid: string): Promise<GroupPos
     answered: answeredPostIds.has(postId),
     topComment: topCommentByPostId.get(postId) ?? null,
     subscription: summarizeSubscription((post as Record<string, unknown>).subscriptions, uid),
+    f1Tags: parseF1Tags((post as Record<string, unknown>).f1_tags),
+    isSpoiler: Boolean((post as Record<string, unknown>).is_spoiler),
   };
   return (await withCalls([view]))[0];
 }
@@ -934,6 +966,8 @@ export async function listFeedPosts(
         answered: p.answered,
         topComment: p.topComment,
         subscription: p.subscription,
+        f1Tags: p.f1Tags,
+        isSpoiler: p.isSpoiler,
         call: p.call,
         authorRecord: p.authorRecord,
       };
@@ -1016,6 +1050,8 @@ export async function listFeedPosts(
       answered: answeredPostIds.has(p.id as string),
       topComment: topCommentByPostId.get(p.id as string) ?? null,
       subscription: summarizeSubscription((p as Record<string, unknown>).subscriptions, uid),
+      f1Tags: parseF1Tags((p as Record<string, unknown>).f1_tags),
+      isSpoiler: Boolean((p as Record<string, unknown>).is_spoiler),
     };
   });
   return { posts: await withCalls(posts), nextCursor: hasMore ? (page[page.length - 1].created_at as string) : null };

@@ -1,5 +1,5 @@
 import type { AvatarConfig } from "@/lib/avatar";
-import type { PostKind, PostPollView, PostSubscriptionState, PostTopComment } from "@/lib/communities";
+import type { F1Tag, PostKind, PostPollView, PostSubscriptionState, PostTopComment } from "@/lib/communities";
 import type { GroupRole } from "@/lib/supabase/groups";
 import type { PostAttachment, PostStatus, VoteValue } from "@/lib/supabase/groupPosts";
 import type { AuthorRecord, PostCallView } from "@/lib/supabase/postCalls";
@@ -49,6 +49,10 @@ export type PostCardData = {
   topComment?: PostTopComment | null;
   /** Viewer's notification subscription state for this post ("default" | "following" | "muted"). */
   subscription?: PostSubscriptionState;
+  /** Structured F1 entity tags (Level 3). */
+  f1Tags?: F1Tag[] | null;
+  /** Whether the post is flagged as containing spoilers (Level 3). */
+  isSpoiler?: boolean;
   /** When its author last edited it. */
   editedAt?: string | null;
   /** Whether the viewer wrote it (they may edit and delete it). */

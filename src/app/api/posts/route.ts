@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { PostKind, PostPollInput } from "@/lib/communities";
+import type { F1Tag, PostKind, PostPollInput } from "@/lib/communities";
 import { createPost, discardNewPost, type PostAttachment } from "@/lib/supabase/groupPosts";
 import { saveCall, validateCall } from "@/lib/supabase/postCalls";
 import { getCurrentSeason } from "@/lib/currentSeason";
@@ -31,6 +31,8 @@ export async function POST(request: Request) {
     poll?: PostPollInput | null;
     kind?: PostKind;
     scheduledAt?: string | null;
+    f1Tags?: F1Tag[] | null;
+    isSpoiler?: boolean;
     /** A call on this weekend's race (takes with receipts), checked against the race and its lock below. */
     call?: unknown;
   };
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
       poll: body.poll ?? null,
       kind: body.kind,
       scheduledAt: body.scheduledAt,
+      f1Tags: body.f1Tags,
+      isSpoiler: body.isSpoiler,
     });
     if (call) {
       try {

@@ -7,7 +7,7 @@ import { BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlightlySmiling,
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
-import { canDo, postKindsFor } from "@/lib/communities";
+import { canDo, postKindsFor, type F1Tag } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
 import { PostAttachment, type AttachmentView } from "./post/PostAttachment";
@@ -22,6 +22,7 @@ import { CommunitySelector } from "./post/CommunitySelector";
 import { EmojiPicker } from "./post/EmojiPicker";
 import { GifPicker } from "./post/GifPicker";
 import { MentionAutocomplete } from "./post/MentionAutocomplete";
+import { F1TagSelector } from "./post/F1TagSelector";
 
 const IMAGE_MAX_BYTES = 500 * 1024;
 const OTHER_MAX_BYTES = 2 * 1024 * 1024;
@@ -184,6 +185,8 @@ export function PostComposer({
   const justSelectedRef = useRef(false);
   const validPollOptions = pollDraft?.options.map((o) => o.trim()).filter(Boolean) ?? [];
   const pollIncomplete = pollOpen && validPollOptions.length < 2;
+  const [f1Tags, setF1Tags] = useState<F1Tag[]>([]);
+  const [isSpoiler, setIsSpoiler] = useState(false);
 
   // The communities this viewer can genuinely open a round in - their real role in each, against
   // that community's own permission map, through the exact helper createPrediction uses
@@ -292,12 +295,22 @@ export function PostComposer({
     setPollDraft(null);
     setMentionState(null);
     setDraftRestored(false);
+    setF1Tags([]);
+    setIsSpoiler(false);
   }
 
   /** Closing with real work in the box asks first; closing an empty one just closes. Nothing the
    * viewer typed is thrown away on a single stray click. */
   function requestClose() {
-    if (title.trim() || content.trim() || mediaPreview || gallery.length > 0 || (pollOpen && validPollOptions.length > 0)) {
+    if (
+      title.trim() ||
+      content.trim() ||
+      mediaPreview ||
+      gallery.length > 0 ||
+      (pollOpen && validPollOptions.length > 0) ||
+      f1Tags.length > 0 ||
+      isSpoiler
+    ) {
       setConfirmDiscard(true);
       return;
     }
@@ -538,6 +551,8 @@ export function PostComposer({
         kind: isPrediction && canPredict ? "prediction" : undefined,
         scheduledAt: scheduledAt && !hasCall ? new Date(scheduledAt).toISOString() : null,
         call: hasCall && callableRace && callDraft ? { raceId: callableRace.raceId, ...callDraft } : undefined,
+        f1Tags: f1Tags.length > 0 ? f1Tags : undefined,
+        isSpoiler: isSpoiler || undefined,
       }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { status?: PostStatus; scheduledAt?: string | null; error?: string } | null;
@@ -857,6 +872,18 @@ export function PostComposer({
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {isOpen && (
+            <div className="pl-11 pt-2">
+              <F1TagSelector
+                tags={f1Tags}
+                onChange={setF1Tags}
+                isSpoiler={isSpoiler}
+                onSpoilerChange={setIsSpoiler}
+                upcomingRaces={upcomingRaces}
+              />
             </div>
           )}
 

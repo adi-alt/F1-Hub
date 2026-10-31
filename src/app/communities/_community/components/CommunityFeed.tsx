@@ -133,6 +133,7 @@ export function CommunityFeed({
   // only in the plain newest-first view, where "where it ended" means something.
   const now = useMinuteClock();
   const [session, setSession] = useState<SessionKey | null>(null);
+  const [selectedF1Tag, setSelectedF1Tag] = useState<string | null>(null);
   const sessions = weekend?.sessions ?? [];
   const tagFor = (post: GroupPost) => (sessions.length ? sessionPhaseAt(sessions, Date.parse(post.createdAt)) : null);
   const results: { session: CommunitySession; lines: ResultLine[]; at: number }[] = weekend
@@ -308,6 +309,17 @@ export function CommunityFeed({
         return b.at - a.at;
       });
 
+  const visibleStream = selectedF1Tag
+    ? stream.filter((item) => {
+        if (item.kind !== "post") return false;
+        return item.post.f1Tags?.some(
+          (t) =>
+            t.id.toLowerCase() === selectedF1Tag.toLowerCase() ||
+            t.label.toLowerCase() === selectedF1Tag.toLowerCase(),
+        );
+      })
+    : stream;
+
   return (
     <div>
       {weekend && (
@@ -351,6 +363,22 @@ export function CommunityFeed({
         </div>
       )}
 
+      {selectedF1Tag && (
+        <div className="mt-3 flex items-center justify-between rounded-control border border-brand/30 bg-brand/10 px-3 py-1.5 text-caption">
+          <span className="flex items-center gap-1.5 text-primary">
+            <span>Filtered by tag:</span>
+            <span className="font-semibold text-brand">{selectedF1Tag}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedF1Tag(null)}
+            className="text-secondary hover:text-primary underline text-[11px]"
+          >
+            Clear tag filter
+          </button>
+        </div>
+      )}
+
       {/* Posts as cards in the site's glass panel, 12px apart, as on the Communities home. */}
       <div className="mt-3 space-y-3">
         {reloading ? (
@@ -359,7 +387,7 @@ export function CommunityFeed({
           <RetryLine message="Couldn't load these posts." onRetry={() => setQuery({ ...query })} />
         ) : (
           <>
-            {stream.map((item, i) =>
+            {visibleStream.map((item, i) =>
               item.kind === "result" ? (
                 weekend && (
                   <SessionResultCard
@@ -375,7 +403,15 @@ export function CommunityFeed({
                 <FailedPost key={item.post.id} post={item.post} onRetry={() => retry(item.post)} onDiscard={() => setPosts((prev) => prev.filter((p) => p.id !== item.post.id))} />
               ) : (
                 <div key={item.post.id} className={item.post.pending ? "opacity-60" : ""}>
-                  <PostCard post={item.post} index={i} showGroup={false} canModerate={canModerate} onModerated={refresh} sessionTag={tagFor(item.post)} />
+                  <PostCard
+                    post={item.post}
+                    index={i}
+                    showGroup={false}
+                    canModerate={canModerate}
+                    onModerated={refresh}
+                    sessionTag={tagFor(item.post)}
+                    onTagClick={setSelectedF1Tag}
+                  />
                   {item.post.pending && <p className="mt-1 pl-1 text-caption text-tertiary">Sending…</p>}
                 </div>
               ),

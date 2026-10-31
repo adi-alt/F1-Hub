@@ -17,6 +17,8 @@ import { PostMedia } from "./PostMedia";
 import { PostAttachment } from "./PostAttachment";
 import { PostGallery } from "./PostGallery";
 import { PollCard } from "./PollCard";
+import { SpoilerShield } from "./SpoilerShield";
+import { F1TagChip } from "./F1TagChip";
 import type { PostCardData } from "./types";
 import { useOptimisticVote } from "./useOptimisticVote";
 import { useOptimisticSave } from "./useOptimisticSave";
@@ -46,6 +48,7 @@ export function PostCard({
   variant = "default",
   sessionTag,
   onSavedChange,
+  onTagClick,
 }: {
   post: PostCardData;
   index?: number;
@@ -57,6 +60,8 @@ export function PostCard({
   sessionTag?: SessionPhase;
   /** Used by the saved-posts page to remove a card as soon as it is unsaved. */
   onSavedChange?: (saved: boolean) => void;
+  /** When clicked, filters the feed to this F1 tag (Level 3). */
+  onTagClick?: (tagId: string) => void;
 }) {
   const { score, myVote, vote } = useOptimisticVote(`/api/posts/${post.id}/vote`, post.score, post.myVote);
   const { saved, saving, toggle } = useOptimisticSave(`/api/posts/${post.id}/save`, post.saved ?? false);
@@ -400,18 +405,41 @@ export function PostCard({
                 }}
               />
             ) : (
-              <PostContent title={view.title} content={view.content} />
+              <SpoilerShield isSpoiler={post.isSpoiler}>
+                <PostContent title={view.title} content={view.content} />
+                {/* Gallery, single attachment, or legacy mediaUrl */}
+                {post.gallery ? (
+                  <PostGallery gallery={post.gallery} />
+                ) : post.attachment ? (
+                  <PostAttachment attachment={post.attachment} />
+                ) : post.mediaUrl ? (
+                  <PostMedia url={post.mediaUrl} />
+                ) : null}
+                {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
+                {post.call && <CallChip call={post.call} />}
+              </SpoilerShield>
             )}
-            {/* Gallery, single attachment, or legacy mediaUrl */}
-            {post.gallery ? (
-              <PostGallery gallery={post.gallery} />
-            ) : post.attachment ? (
-              <PostAttachment attachment={post.attachment} />
-            ) : post.mediaUrl ? (
-              <PostMedia url={post.mediaUrl} />
-            ) : null}
-            {post.poll && <PollCard postId={post.id} poll={post.poll} disabled={commentsLocked} />}
-            {post.call && <CallChip call={post.call} />}
+
+            {/* F1 Entity Tags (Level 3) */}
+            {post.f1Tags && post.f1Tags.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {post.f1Tags.map((t) => (
+                  <F1TagChip
+                    key={`${t.category}-${t.id}`}
+                    tag={t}
+                    size="xs"
+                    onClick={
+                      onTagClick
+                        ? () => {
+                            onTagClick(t.id);
+                          }
+                        : undefined
+                    }
+                  />
+                ))}
+              </div>
+            )}
+
             {(pinned || kindChip || answered) && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {pinned && <Badge tone="warning">Pinned</Badge>}
