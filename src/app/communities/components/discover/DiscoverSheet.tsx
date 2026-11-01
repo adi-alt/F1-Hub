@@ -50,7 +50,10 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
   const abortRef = useRef<AbortController | null>(null);
   const loadingMoreRef = useRef(false);
   const cursorRef = useRef(cursor);
-  cursorRef.current = cursor;
+
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
 
   const buildUrl = useCallback(
     (nextCursor?: string) => {
@@ -65,7 +68,10 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
     [query, sort, topics],
   );
   const buildUrlRef = useRef(buildUrl);
-  buildUrlRef.current = buildUrl;
+
+  useEffect(() => {
+    buildUrlRef.current = buildUrl;
+  }, [buildUrl]);
 
   // First page, refetched whenever the query/topics/sort change. Debounced so typing doesn't fire
   // one request per keystroke.

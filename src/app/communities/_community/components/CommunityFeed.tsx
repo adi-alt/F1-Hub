@@ -137,9 +137,15 @@ export function CommunityFeed({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
   const cursorRef = useRef(cursor);
-  cursorRef.current = cursor;
   const queryRef = useRef(query);
-  queryRef.current = query;
+
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
+
+  useEffect(() => {
+    queryRef.current = query;
+  }, [query]);
 
   // Race-weekend mode, as on the Communities home: a session chosen on the bar narrows the feed to what was said
   // during and after it, with its result first. Results otherwise sit in the stream where their session ended, but
