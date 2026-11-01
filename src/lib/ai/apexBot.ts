@@ -1,8 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { APEX_BOT_DISPLAY_NAME, APEX_BOT_USER_ID, APEX_BOT_USERNAME } from "./apexBotIdentity";
 
-export const APEX_BOT_USER_ID = "00000000-0000-4000-8000-0000000000a1";
-export const APEX_BOT_USERNAME = "apex";
-export const APEX_BOT_DISPLAY_NAME = "Apex AI";
+// Server-only (supabaseAdmin). Client components must import from ./apexBotIdentity instead.
+export { APEX_BOT_DISPLAY_NAME, APEX_BOT_USER_ID, APEX_BOT_USERNAME, isApexBot } from "./apexBotIdentity";
 
 let ensured = false;
 
@@ -37,6 +37,3 @@ export async function ensureApexBotProfile(): Promise<void> {
   }
 }
 
-export function isApexBot(userId?: string | null): boolean {
-  return userId === APEX_BOT_USER_ID;
-}

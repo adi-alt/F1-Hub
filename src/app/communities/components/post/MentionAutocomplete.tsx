@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Icon } from "@/components/ui/Icon";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
-import { APEX_BOT_USER_ID } from "@/lib/ai/apexBot";
+import { APEX_BOT_USER_ID } from "@/lib/ai/apexBotIdentity";
 import type { MentionUser } from "@/app/users/services/users.service";
 
 const APEX_BOT_CANDIDATE: MentionUser = {
