@@ -2,8 +2,9 @@
 
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Fragment, useState } from "react";
-import { MessageSquare, MoreHorizontal, Quote, SmilePlus } from "lucide-react";
+import { MessageSquare, MoreHorizontal, Quote, SmilePlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
+import { isApexBot } from "@/lib/ai/apexBot";
 import { timeAgo } from "@/lib/format";
 import { safeHttpUrl } from "@/lib/linkPreview";
 import { COMMENT_REACTIONS, type CommentReactionEmoji } from "@/lib/communities";
@@ -303,9 +304,18 @@ function CommentNode({
                   </button>
                 )}
               </AuthorProfilePopover>
-              {comment.isOp && <Badge tone="info">OP</Badge>}
-              {comment.authorRole === "admin" && <Badge tone="neutral">Admin</Badge>}
-              {comment.authorRole === "moderator" && <Badge tone="neutral">Mod</Badge>}
+              {isApexBot(comment.userId) ? (
+                <span className="flex items-center gap-1 rounded-control bg-brand/15 px-1.5 py-0.5 text-caption font-semibold text-brand">
+                  <Icon icon={Sparkles} size={16} className="size-3" />
+                  <span>APEX AI</span>
+                </span>
+              ) : (
+                <>
+                  {comment.isOp && <Badge tone="info">OP</Badge>}
+                  {comment.authorRole === "admin" && <Badge tone="neutral">Admin</Badge>}
+                  {comment.authorRole === "moderator" && <Badge tone="neutral">Mod</Badge>}
+                </>
+              )}
               {comment.accepted && <Badge tone="success">✓ Answered</Badge>}
               {comment.pinned && <Badge tone="warning">Pinned</Badge>}
               {depth >= MAX_VISIBLE_DEPTH && comment.parentAuthorName && (

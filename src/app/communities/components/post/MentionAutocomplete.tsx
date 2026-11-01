@@ -1,8 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Sparkles } from "lucide-react";
+import { Icon } from "@/components/ui/Icon";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
+import { APEX_BOT_USER_ID } from "@/lib/ai/apexBot";
 import type { MentionUser } from "@/app/users/services/users.service";
+
+const APEX_BOT_CANDIDATE: MentionUser = {
+  uid: APEX_BOT_USER_ID,
+  username: "Apex",
+  displayName: "Apex AI",
+  avatar: null,
+};
 
 export function MentionAutocomplete({
   query,
@@ -20,7 +30,12 @@ export function MentionAutocomplete({
   const [loading, setLoading] = useState(false);
 
   const clean = query.trim().replace(/^@/, "");
-  const displayedCandidates = candidates;
+  const isApexMatch = !clean || "apex".startsWith(clean.toLowerCase()) || "ai".startsWith(clean.toLowerCase());
+  const displayedCandidates = useMemo(() => {
+    return isApexMatch
+      ? [APEX_BOT_CANDIDATE, ...candidates.filter((c) => c.uid !== APEX_BOT_USER_ID)]
+      : candidates;
+  }, [isApexMatch, candidates]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -125,8 +140,18 @@ export function MentionAutocomplete({
           >
             <PersonAvatar id={user.uid} avatar={user.avatar ?? null} size={24} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-body-sm font-medium leading-tight text-primary">{user.displayName}</p>
-              <p className="truncate text-caption text-tertiary">@{user.username}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-body-sm font-medium leading-tight text-primary">{user.displayName}</p>
+                {user.uid === APEX_BOT_USER_ID && (
+                  <span className="flex items-center gap-1 rounded-control bg-brand/15 px-1.5 py-0.5 text-caption font-semibold text-brand">
+                    <Icon icon={Sparkles} size={16} className="size-3" />
+                    <span>F1 Copilot</span>
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-caption text-tertiary">
+                {user.uid === APEX_BOT_USER_ID ? "@Apex · Ask strategy & telemetry stats" : `@${user.username}`}
+              </p>
             </div>
           </button>
         );

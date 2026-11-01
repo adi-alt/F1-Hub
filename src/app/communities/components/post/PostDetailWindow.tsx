@@ -14,6 +14,7 @@ import type { VoteValue } from "@/lib/supabase/groupPosts";
 import { CommentComposer } from "./CommentComposer";
 import { CommentsSkeleton } from "./CommentSkeleton";
 import { CommentSortControl, CommentTree } from "./CommentTree";
+import { ThreadSummaryCard } from "./ThreadSummaryCard";
 import { PostHeader } from "./PostHeader";
 import { PostGallery } from "./PostGallery";
 import { PollCard } from "./PollCard";
@@ -345,6 +346,12 @@ export function PostDetailWindow({
                 <Icon icon={X} size={16} className="size-3.5" />
               </button>
             )}
+          </div>
+        )}
+
+        {!focused && (
+          <div className="mt-3.5">
+            <ThreadSummaryCard postId={post.id} commentCount={comments?.length ?? 0} />
           </div>
         )}
 
