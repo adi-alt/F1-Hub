@@ -135,6 +135,11 @@ export function CommunityFeed({
   const [reloading, setReloading] = useState(false);
   const [reloadError, setReloadError] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadingMoreRef = useRef(false);
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
+  const queryRef = useRef(query);
+  queryRef.current = query;
 
   // Race-weekend mode, as on the Communities home: a session chosen on the bar narrows the feed to what was said
   // during and after it, with its result first. Results otherwise sit in the stream where their session ended, but
@@ -218,32 +223,37 @@ export function CommunityFeed({
   }, [groupId, query]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !cursor) return;
+    const cur = cursorRef.current;
+    if (loadingMoreRef.current || !cur) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     setPageError(false);
     try {
-      const res = await fetch(`/api/groups/${groupId}/posts${queryString(query, cursor)}`);
+      const res = await fetch(`/api/groups/${groupId}/posts${queryString(queryRef.current, cur)}`);
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as { posts: GroupPost[]; nextCursor: string | null };
+      const next = body.nextCursor === cur ? null : body.nextCursor;
       setPosts((prev) => {
         const seen = new Set(prev.map((p) => p.id));
         return [...prev, ...body.posts.filter((p) => !seen.has(p.id))];
       });
-      setCursor(body.nextCursor);
+      setCursor(next);
+      cursorRef.current = next;
     } catch {
       setPageError(true);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [cursor, groupId, loadingMore, query]);
+  }, [groupId]);
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || !cursor) return;
+    if (!el || !cursor || pageError) return;
     const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { rootMargin: "400px" });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [cursor, loadMore]);
+  }, [cursor, pageError, loadMore]);
 
   // Realtime says the feed changed (GroupRealtimeWatcher): offer the new posts instead of moving what's being read.
   const [newPosts, setNewPosts] = useState(false);
