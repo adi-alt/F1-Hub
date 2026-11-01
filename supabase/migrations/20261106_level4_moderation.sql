@@ -11,3 +11,4 @@ alter table public.group_posts add column if not exists removal_reason text;
 -- 3. Temporary Mutes on group_members
 alter table public.group_members add column if not exists muted_until timestamptz;
 alter table public.group_members add column if not exists mute_reason text;
+

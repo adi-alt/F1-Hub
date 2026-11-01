@@ -843,3 +843,11 @@ alter table race_inputs add constraint race_inputs_qualifying_gap_not_nan check 
 alter table races add constraint races_pole_time_not_nan check (pole_time_sec is null or pole_time_sec <> 'NaN'::numeric);
 alter table archive_results add constraint archive_results_points_not_nan check (points is null or points <> 'NaN'::numeric);
 alter table archive_pit_stops add constraint archive_pit_stops_duration_not_nan check (duration_sec is null or duration_sec <> 'NaN'::numeric);
+
+-- Level 4: Private-Community Hardening, Roles & Moderation
+alter table groups add column if not exists slow_mode_seconds integer default 0;
+alter table groups add column if not exists rules text[] default '{}';
+alter table group_posts add column if not exists removal_reason text;
+alter table group_members add column if not exists muted_until timestamptz;
+alter table group_members add column if not exists mute_reason text;
+
