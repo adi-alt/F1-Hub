@@ -346,7 +346,10 @@ export function GroupsFeed({
   const communitySentinelRef = useRef<HTMLDivElement>(null);
   const communityLoadingMoreRef = useRef(false);
   const communityCursorRef = useRef(communityCursor);
-  communityCursorRef.current = communityCursor;
+
+  useEffect(() => {
+    communityCursorRef.current = communityCursor;
+  }, [communityCursor]);
 
   useEffect(() => {
     if (!communityId) return;
@@ -583,9 +586,15 @@ function AggregateFeedStream({
   const prevRefreshTick = useRef(0);
   const loadingMoreRef = useRef(false);
   const cursorRef = useRef(cursor);
-  cursorRef.current = cursor;
   const feedTypeRef = useRef(feedType);
-  feedTypeRef.current = feedType;
+
+  useEffect(() => {
+    cursorRef.current = cursor;
+  }, [cursor]);
+
+  useEffect(() => {
+    feedTypeRef.current = feedType;
+  }, [feedType]);
 
   const fetchTab = useCallback((targetType: FeedType, isRefresh: boolean) => {
     if (!isRefresh) {
