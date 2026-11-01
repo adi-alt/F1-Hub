@@ -1,11 +1,14 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, ShieldCheck, Sparkles } from "lucide-react";
 import { EntityAvatar } from "@/components/EntityAvatar";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ConfirmButton } from "@/components/ui/ConfirmButton";
 import { fieldControlClass } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { EYEBROW } from "@/components/ui/panel";
 import { Picker } from "@/components/ui/Picker";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -32,6 +35,7 @@ import {
 import type { GroupDetail, JoinRequest } from "@/lib/supabase/groups";
 import type { OpenReport } from "@/lib/supabase/moderation";
 import type { ModerationAction, ModerationLogEntry } from "@/lib/supabase/moderationLog";
+import type { ModerationTriageResult, ReportTriageItem } from "@/lib/ai/moderationTriage";
 import { AvatarUpload } from "../../../components/AvatarUpload";
 import { BannerUpload } from "../../../components/BannerUpload";
 import { GroupBanner } from "../../../components/GroupBanner";
@@ -719,6 +723,31 @@ function ReportsSection({ group }: { group: GroupDetail }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState("");
+  const [triage, setTriage] = useState<ModerationTriageResult | null>(null);
+  const [triageLoading, setTriageLoading] = useState(false);
+
+  const triageMap = useMemo(() => {
+    if (!triage?.items) return new Map<string, ReportTriageItem>();
+    return new Map(triage.items.map((item) => [item.reportId, item]));
+  }, [triage]);
+
+  async function runTriage() {
+    setTriageLoading(true);
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/reports/triage`, {
+      method: "POST",
+    }).catch(() => null);
+    setTriageLoading(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setError(body?.error ?? "Couldn't run AI triage. Check your connection and try again.");
+      return;
+    }
+    const data = (await res.json().catch(() => null)) as { triage?: ModerationTriageResult } | null;
+    if (data?.triage) {
+      setTriage(data.triage);
+    }
+  }
 
   async function resolve(report: OpenReport, action: "dismiss" | "remove") {
     setBusy(report.id);
@@ -761,46 +790,110 @@ function ReportsSection({ group }: { group: GroupDetail }) {
   return (
     <section aria-label="Reports">
       <Intro>Posts and comments members reported. Removing takes it down for everyone; dismissing keeps it up. Both go in the log.</Intro>
-      {Array.isArray(reports) && reports.length > 1 && (
+      {Array.isArray(reports) && reports.length > 0 && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-control bg-white/[0.03] p-2.5">
           <span className="text-caption text-secondary">{reports.length} open reports</span>
-          <ConfirmButton
-            onConfirm={() => void dismissAll()}
-            question="Dismiss all open reports?"
-            confirmLabel="Dismiss all"
-            pending={bulkBusy}
-          >
-            Dismiss all
-          </ConfirmButton>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={triageLoading}
+              onClick={() => void runTriage()}
+              className="gap-1.5"
+            >
+              <Icon icon={Sparkles} size={16} className="text-brand" />
+              <span>AI Triage</span>
+            </Button>
+            {reports.length > 1 && (
+              <ConfirmButton
+                onConfirm={() => void dismissAll()}
+                question="Dismiss all open reports?"
+                confirmLabel="Dismiss all"
+                pending={bulkBusy}
+              >
+                Dismiss all
+              </ConfirmButton>
+            )}
+          </div>
         </div>
       )}
+
+      {triage && (
+        <div className="mb-4 rounded-card border border-brand/20 bg-brand/[0.04] p-3 text-body-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 font-medium text-primary">
+              <Icon icon={Sparkles} size={16} className="text-brand" />
+              <span>AI Queue Triage</span>
+            </div>
+            {triage.highSeverityCount > 0 ? (
+              <span className="flex items-center gap-1 rounded-control bg-danger/15 px-2 py-0.5 text-caption font-semibold text-danger">
+                <Icon icon={AlertTriangle} size={16} className="size-3.5" />
+                <span>{triage.highSeverityCount} High Priority</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 rounded-control bg-success/15 px-2 py-0.5 text-caption font-semibold text-success">
+                <Icon icon={ShieldCheck} size={16} className="size-3.5" />
+                <span>All Clear</span>
+              </span>
+            )}
+          </div>
+          <p className="mt-2 text-caption text-secondary leading-relaxed">{triage.summary}</p>
+        </div>
+      )}
+
       {reports === null || reports === "error" ? (
         <ListState what={reports === null ? "loading" : "error"} onRetry={reload} />
       ) : reports.length === 0 ? (
         <p className="py-6 text-center text-body-sm text-tertiary">Nothing has been reported.</p>
       ) : (
         <ul className="divide-y divide-white/[0.05] border-y border-white/[0.06]">
-          {reports.map((report) => (
-            <li key={report.id} className="py-3">
-              <div className="flex flex-wrap items-start gap-3">
-                <div className="min-w-0 flex-1 basis-56">
-                  <p className="text-caption text-tertiary">
-                    {report.commentId ? "Comment" : "Post"} by {report.authorName} · reported by {report.reporterName} · {shortDate(report.createdAt)}
-                  </p>
-                  <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-body-sm text-primary">{report.excerpt}</p>
-                  <p className="mt-1.5 border-l-2 border-white/10 pl-3 text-body-sm text-secondary">{report.reason}</p>
+          {reports.map((report) => {
+            const itemTriage = triageMap.get(report.id);
+            return (
+              <li key={report.id} className="py-3">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="min-w-0 flex-1 basis-56">
+                    <div className="flex items-center gap-2">
+                      <p className="text-caption text-tertiary">
+                        {report.commentId ? "Comment" : "Post"} by {report.authorName} · reported by {report.reporterName} · {shortDate(report.createdAt)}
+                      </p>
+                      {itemTriage && (
+                        <Badge
+                          tone={
+                            itemTriage.severity === "high"
+                              ? "danger"
+                              : itemTriage.severity === "medium"
+                              ? "warning"
+                              : "neutral"
+                          }
+                        >
+                          {itemTriage.severity.toUpperCase()}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-body-sm text-primary">{report.excerpt}</p>
+                    <p className="mt-1.5 border-l-2 border-white/10 pl-3 text-body-sm text-secondary">{report.reason}</p>
+                    {itemTriage && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 rounded-control bg-surface-2/60 px-2.5 py-1.5 text-caption text-secondary">
+                        <span className="font-semibold text-primary">AI Rec:</span>
+                        <span className="capitalize">{itemTriage.recommendedAction.replace("_", " ")}</span>
+                        <span className="text-tertiary">·</span>
+                        <span className="italic text-tertiary">{itemTriage.synopsis}</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <Button variant="ghost" size="sm" disabled={busy === report.id} onClick={() => void resolve(report, "dismiss")}>
+                      Dismiss
+                    </Button>
+                    <ConfirmButton onConfirm={() => void resolve(report, "remove")} question="Remove it?" confirmLabel="Remove" pending={busy === report.id}>
+                      Remove
+                    </ConfirmButton>
+                  </span>
                 </div>
-                <span className="flex shrink-0 items-center gap-2">
-                  <Button variant="ghost" size="sm" disabled={busy === report.id} onClick={() => void resolve(report, "dismiss")}>
-                    Dismiss
-                  </Button>
-                  <ConfirmButton onConfirm={() => void resolve(report, "remove")} question="Remove it?" confirmLabel="Remove" pending={busy === report.id}>
-                    Remove
-                  </ConfirmButton>
-                </span>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
       {error && (

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { parseAvatar, type AvatarConfig } from "@/lib/avatar";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
+import { shouldTriggerApexCopilot, triggerApexCommentReply } from "@/lib/ai/apexCopilot";
 import {
   COMMENT_REACTIONS,
   canDo,
@@ -1298,6 +1299,11 @@ export async function addComment(
   if (trimmed) {
     await notifyMentions(groupId, postId, data.id as string, uid, trimmed);
     await notifyQuotes(groupId, postId, data.id as string, uid, trimmed, parentCommentId ?? null);
+    if (shouldTriggerApexCopilot(trimmed, uid)) {
+      void triggerApexCommentReply(groupId, postId, data.id as string, trimmed, uid).catch((err) => {
+        console.error("triggerApexCommentReply:", err);
+      });
+    }
   }
   return { id: data.id as string };
 }

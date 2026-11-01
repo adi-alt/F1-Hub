@@ -31,6 +31,9 @@ export const STALE_AFTER_MINUTES: Record<string, number> = {
   // Weekly (Monday 00:00 UTC), plus a day of slack for GitHub's late scheduled runs: the old 36h limit
   // would have reported it stale from Wednesday to Monday every week.
   "sync-calendar": 8 * 24 * 60,
+  // Runs 3x weekly (Sat 22:00, Mon 06:00, Thu 06:00 UTC). Max gap is 72h (Mon to Thu);
+  // plus 24h slack for GitHub Actions schedule delay, stale after 4 days.
+  "race-photos": 4 * 24 * 60,
 };
 const DEFAULT_STALE_MINUTES = 36 * 60;
 
