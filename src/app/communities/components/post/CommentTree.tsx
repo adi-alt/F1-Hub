@@ -4,7 +4,7 @@ import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { Fragment, useState } from "react";
 import { MessageSquare, MoreHorizontal, Quote, SmilePlus, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
-import { isApexBot } from "@/lib/ai/apexBot";
+import { isApexBot } from "@/lib/ai/apexBotIdentity";
 import { timeAgo } from "@/lib/format";
 import { safeHttpUrl } from "@/lib/linkPreview";
 import { COMMENT_REACTIONS, type CommentReactionEmoji } from "@/lib/communities";
