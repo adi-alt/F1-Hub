@@ -368,24 +368,24 @@ export const notifyPostPending = (groupId: string, postId: string, authorId: str
   });
 
 /** A held post was decided: its author. */
-export const notifyPostModerated = (groupId: string, postId: string, moderatorId: string, approved: boolean) =>
+export const notifyPostModerated = (groupId: string, postId: string, moderatorId: string, approved: boolean, reason?: string) =>
   safely(async () => {
     const [{ data: post }, c] = await Promise.all([supabaseAdmin.from("group_posts").select("user_id, title, content").eq("id", postId).maybeSingle(), community(groupId)]);
     if (!post?.user_id) return;
     await notify([post.user_id as string], {
       kind: "post_moderated",
       title: approved ? `Your post in ${c.name} is live` : `Your post in ${c.name} wasn't approved`,
-      body: approved ? "Everyone in the community can see it now." : "A moderator declined it. You can post again.",
+      body: approved ? "Everyone in the community can see it now." : reason ? `A moderator removed it: ${reason}` : "A moderator declined it. You can post again.",
       href: approved ? `${groupHref(groupId)}&post=${postId}` : groupHref(groupId),
       actorId: moderatorId,
       groupId,
       dedupeKey: `post_moderated:${postId}`,
       email: {
         context: contextOf(c),
-        eyebrow: approved ? "Post approved" : "Post declined",
+        eyebrow: approved ? "Post approved" : reason ? `Post removed: ${reason}` : "Post declined",
         quote: excerpt([post.title, post.content].filter(Boolean).join(". ")),
         cta: approved ? "See your post" : `Open ${c.name}`,
-        reason: `You posted in ${c.name}, where posts are reviewed first.`,
+        reason: reason ? `A moderator removed this post: ${reason}` : `You posted in ${c.name}, where posts are reviewed first.`,
       },
     });
   });

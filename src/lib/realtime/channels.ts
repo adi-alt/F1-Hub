@@ -72,5 +72,6 @@ export function groupListeners(groupId: string): ListenerIdentity[] {
     // they did. Real gap, fixed here, not a new capability being added for the first time.
     { table: "group_posts", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
     { table: "group_predictions", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
+    { table: "group_join_requests", event: "*", filter: `group_id=eq.${groupId}`, authContext: groupId },
   ];
 }

@@ -304,6 +304,7 @@ export function CommunityWorkspace({
                   <Suspense fallback={<FeedStreamSkeleton />}>
                     <StreamedCommunityFeed
                       group={group}
+                      myUserId={myUserId}
                       feedSource={feedSource}
                       pendingPosts={pendingPosts}
                       upcomingRaces={upcomingRaces}
@@ -356,6 +357,7 @@ export function CommunityWorkspace({
               showPredictions={modules.includes("predictions")}
               showLeaderboard={modules.includes("leaderboard")}
               canInvite={canInvite}
+              rules={group.rules}
               onOpenTab={openTab}
             />
           </RegionBoundary>
@@ -408,6 +410,7 @@ export function CommunityWorkspace({
 
 function StreamedCommunityFeed({
   group,
+  myUserId,
   feedSource,
   pendingPosts,
   upcomingRaces,
@@ -419,6 +422,7 @@ function StreamedCommunityFeed({
   weekend,
 }: {
   group: GroupDetail;
+  myUserId: string;
   feedSource: Streamable<{ posts: GroupPost[]; nextCursor: string | null }>;
   pendingPosts?: number;
   upcomingRaces: Streamable<RaceOption[]>;
@@ -435,6 +439,7 @@ function StreamedCommunityFeed({
   const { data: resolvedWeekend } = useProgressive<CommunityWeekendData>(weekend, null);
   const canModerate = group.myRole === "admin" || group.myRole === "moderator";
   const resolvedPending = pendingPosts ?? (canModerate ? resolvedFeed.posts.filter((p) => p.status === "pending").length : undefined);
+  const myMember = group.members.find((m) => m.userId === myUserId);
 
   return (
     <CommunityFeed
@@ -457,6 +462,10 @@ function StreamedCommunityFeed({
       focusPostId={focusPostId}
       focusCommentId={focusCommentId}
       weekend={resolvedWeekend}
+      slowModeSeconds={group.slowModeSeconds ?? 0}
+      mutedUntil={myMember?.mutedUntil ?? null}
+      muteReason={myMember?.muteReason ?? null}
+      rules={group.rules ?? []}
     />
   );
 }

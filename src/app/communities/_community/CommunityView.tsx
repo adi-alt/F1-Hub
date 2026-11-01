@@ -96,6 +96,7 @@ export async function CommunityView({
     if (!preview) notFound();
     return (
       <div className="page-narrow py-10">
+        <GroupRealtimeWatcher groupId={id} />
         <JoinPrompt
           group={preview}
           joinRequestStatus={joinRequest?.status ?? null}

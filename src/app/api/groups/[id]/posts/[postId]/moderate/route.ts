@@ -7,11 +7,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const session = await getSession();
   if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id, postId } = await params;
-  const { action } = (await request.json().catch(() => ({}))) as { action?: "approve" | "reject" };
+  const { action, reason } = (await request.json().catch(() => ({}))) as { action?: "approve" | "reject"; reason?: string };
   if (action !== "approve" && action !== "reject") return NextResponse.json({ error: "Invalid action" }, { status: 400 });
 
   try {
-    await moderatePost(id, postId, session.uid, action);
+    await moderatePost(id, postId, session.uid, action, reason);
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });

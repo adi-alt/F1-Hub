@@ -21,6 +21,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     tags?: string[];
     features?: CommunityFeatures;
     permissions?: CommunityPermissions;
+    slowModeSeconds?: number;
+    rules?: string[];
   };
   try {
     await updateGroupSettings(id, session.uid, body);

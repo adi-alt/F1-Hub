@@ -1,7 +1,14 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
 
-export type ModerationAction = "post_approved" | "post_removed" | "comment_removed" | "report_dismissed";
+export type ModerationAction =
+  | "post_approved"
+  | "post_removed"
+  | "comment_removed"
+  | "report_dismissed"
+  | "ownership_transferred"
+  | "member_muted"
+  | "member_unmuted";
 
 export type ModerationLogEntry = {
   id: string;

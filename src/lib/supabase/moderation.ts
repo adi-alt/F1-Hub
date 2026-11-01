@@ -447,3 +447,26 @@ export async function resolveReport(groupId: string, reportId: string, uid: stri
   const { error: closeError } = await close;
   if (closeError) throw new Error(`resolveReport(${reportId}): ${closeError.message}`);
 }
+
+/** Bulk dismisses all open reports in a community. */
+export async function dismissAllReports(groupId: string, uid: string): Promise<{ count: number }> {
+  await requireModerator(groupId, uid);
+  const resolved = { status: "dismissed", resolved_by: uid, resolved_at: new Date().toISOString() };
+  const { data, error } = await supabaseAdmin
+    .from("group_post_reports")
+    .update(resolved)
+    .eq("group_id", groupId)
+    .eq("status", "open")
+    .select("id");
+  if (error) throw new Error(`dismissAllReports(${groupId}): ${error.message}`);
+  const count = data?.length ?? 0;
+  if (count > 0) {
+    await logModeration({
+      groupId,
+      actorId: uid,
+      action: "report_dismissed",
+      excerpt: `Bulk dismissed ${count} open reports`,
+    });
+  }
+  return { count };
+}

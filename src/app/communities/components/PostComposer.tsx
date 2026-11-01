@@ -7,6 +7,7 @@ import { Activity, BarChart2, Check, ChevronDown, Compass, Crosshair, FaceSlight
 import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { useAuth } from "@/providers/AuthProvider";
+import { useMinuteClock } from "@/hooks/useMinuteClock";
 import { canDo, postKindsFor, type F1DataCard, type F1Tag } from "@/lib/communities";
 import { PredictionComposer, type RaceOption } from "./post/PredictionComposer";
 import { ComposeAssist } from "./post/ComposeAssist";
@@ -118,6 +119,9 @@ export type ComposerCommunity = {
   features: unknown;
   permissions: unknown;
   myRole: string;
+  slowModeSeconds?: number;
+  mutedUntil?: string | null;
+  muteReason?: string | null;
 };
 
 export function PostComposer({
@@ -264,9 +268,39 @@ export function PostComposer({
     return () => window.removeEventListener("mousedown", onClickOutside);
   }, [durationMenuOpen]);
 
+  const clock = useMinuteClock();
   const targetGroupId = fixedGroupId ?? groupId;
   const targetGroup = targetGroupId ? groups.find((g) => g.id === targetGroupId) : undefined;
   const fixedCommunity = fixedGroupId ? targetGroup : undefined;
+  const isMuted = Boolean(targetGroup?.mutedUntil && new Date(targetGroup.mutedUntil).getTime() > clock);
+  const slowModeSec = targetGroup?.myRole === "member" ? (targetGroup.slowModeSeconds ?? 0) : 0;
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    if (!targetGroupId || slowModeSec <= 0) {
+      return;
+    }
+    const key = `apex_last_post_${targetGroupId}`;
+    const checkCooldown = () => {
+      try {
+        const last = localStorage.getItem(key);
+        if (!last) {
+          setCooldownRemaining(0);
+          return;
+        }
+        const elapsed = Math.floor((Date.now() - Number(last)) / 1000);
+        const remaining = Math.max(0, slowModeSec - elapsed);
+        setCooldownRemaining(remaining);
+      } catch {
+        setCooldownRemaining(0);
+      }
+    };
+    checkCooldown();
+    const interval = setInterval(checkCooldown, 1000);
+    return () => clearInterval(interval);
+  }, [targetGroupId, slowModeSec]);
+
+  const activeCooldown = !targetGroupId || slowModeSec <= 0 ? 0 : cooldownRemaining;
   // Real availability, read off that community's own type/features through the same helper the
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
@@ -617,6 +651,13 @@ export function PostComposer({
       if (body?.status === "scheduled" && body.scheduledAt) {
         setScheduledConfirmation(new Date(body.scheduledAt).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }));
       }
+      if (targetGroupId) {
+        try {
+          localStorage.setItem(`apex_last_post_${targetGroupId}`, String(Date.now()));
+        } catch {
+          // Best-effort local storage
+        }
+      }
       onPosted();
       reset();
       setJustPosted(body?.status === "scheduled" ? "Scheduled" : "Posted");
@@ -673,6 +714,15 @@ export function PostComposer({
         </div>
       ) : (
         <>
+          {isMuted && targetGroup?.mutedUntil && (
+            <div className="mb-3 flex items-center gap-2 rounded-control border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-caption text-amber-400">
+              <Icon icon={ShieldAlert} size={16} className="shrink-0" />
+              <span>
+                You are temporarily muted in this community until {new Date(targetGroup.mutedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
+                {targetGroup.muteReason ? ` Reason: ${targetGroup.muteReason}` : ""}
+              </span>
+            </div>
+          )}
           <div className="flex items-start gap-3">
             <PersonAvatar id={user?.uid ?? ""} avatar={avatar} size={32} />
             <div className="min-w-0 flex-1 pr-8">
@@ -1147,23 +1197,33 @@ export function PostComposer({
                 <button
                   type="button"
                   onClick={() => void submit()}
-                  disabled={posting || uploadingMedia || !content.trim() || callIncomplete || pollIncomplete}
+                  disabled={isMuted || activeCooldown > 0 || posting || uploadingMedia || !content.trim() || callIncomplete || pollIncomplete}
                   aria-busy={posting}
                   title={
-                    pollIncomplete
-                      ? "Add at least 2 poll options, or remove the poll"
-                      : callIncomplete
-                        ? "Finish the call, or remove it"
-                        : !content.trim() && !posting
-                          ? "Write something to post"
-                          : undefined
+                    isMuted
+                      ? "You are temporarily muted in this community"
+                      : activeCooldown > 0
+                        ? `Slow mode is active. Please wait ${activeCooldown}s.`
+                        : pollIncomplete
+                          ? "Add at least 2 poll options, or remove the poll"
+                          : callIncomplete
+                            ? "Finish the call, or remove it"
+                            : !content.trim() && !posting
+                              ? "Write something to post"
+                              : undefined
                   }
                   className={`flex h-8 items-center gap-1.5 px-3.5 text-body-sm font-semibold transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring disabled:cursor-not-allowed ${
                     justPosted ? "bg-success/15 text-success" : "bg-brand text-white hover:bg-brand-hover disabled:bg-white/[0.08] disabled:text-tertiary"
                   }`}
                 >
                   {justPosted && <Icon icon={Check} size={16} />}
-                  {posting ? (scheduledAt ? "Scheduling…" : "Posting…") : (justPosted ?? (scheduledAt ? "Schedule" : "Post"))}
+                  {isMuted
+                    ? "Muted"
+                    : activeCooldown > 0
+                      ? `Slow mode (${activeCooldown}s)`
+                      : posting
+                        ? (scheduledAt ? "Scheduling…" : "Posting…")
+                        : (justPosted ?? (scheduledAt ? "Schedule" : "Post"))}
                 </button>
                 {/* A call has to go out before its session, so a post that carries one can't be scheduled. */}
                 {content.trim() && !scheduledAt && !hasCall && <SchedulePost onChange={setScheduledAt} />}

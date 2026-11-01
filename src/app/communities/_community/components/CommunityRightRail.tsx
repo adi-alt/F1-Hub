@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { PersonAvatar } from "@/components/avatar/PersonAvatar";
 import { ChevronRight, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -53,6 +53,7 @@ export function CommunityRightRail({
   showPredictions,
   showLeaderboard,
   canInvite = false,
+  rules,
   onOpenTab,
 }: {
   stats: Streamable<GroupStats>;
@@ -69,11 +70,13 @@ export function CommunityRightRail({
   showLeaderboard: boolean;
   /** Whether this viewer may invite: the People widget's button. */
   canInvite?: boolean;
+  rules?: string[];
   /** Switches the page's own tab rather than navigating: the rail sits beside the panel it points at. */
   onOpenTab: (tab: RailTab) => void;
 }) {
   return (
     <div className="space-y-3">
+      {rules && rules.length > 0 && <CommunityRulesWidget rules={rules} />}
       {showRace && (
         <div className={`overflow-hidden ${PANEL}`}>
           <Suspense fallback={<RaceWeekendWidgetSkeleton />}>
@@ -396,6 +399,34 @@ function SinceLastVisit({ pulse, stats, onOpen }: { pulse: GroupPulse; stats: Gr
             </div>
           ))}
       </dl>
+    </div>
+  );
+}
+
+function CommunityRulesWidget({ rules }: { rules: string[] }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={`p-4 ${PANEL}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-body-sm font-semibold text-primary">Community Rules</p>
+        {rules.length > 3 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="text-caption text-tertiary hover:text-primary transition-colors duration-fast"
+          >
+            {expanded ? "Collapse" : `View all (${rules.length})`}
+          </button>
+        )}
+      </div>
+      <ol className="mt-2.5 space-y-1.5 text-caption text-secondary">
+        {(expanded ? rules : rules.slice(0, 3)).map((rule, idx) => (
+          <li key={idx} className="flex items-start gap-1.5">
+            <span className="font-semibold text-tertiary shrink-0">{idx + 1}.</span>
+            <span className="line-clamp-2">{rule}</span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
