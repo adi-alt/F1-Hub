@@ -178,7 +178,7 @@ async function GroupsHome({ uid }: { uid: string }) {
         : Promise.resolve({} as Record<string, PredictionTrend>),
     ]);
     return { predictions, driversByRace, modelByRace, initialTrends };
-  }).catch(() => EMPTY_PREDICTIONS_BUNDLE);
+  }).catch(() => ({ predictions: [], driversByRace: {}, modelByRace: {}, initialTrends: {} }));
   const raceContextPromise = getRaceContext(season).catch(() => ({ nextRace: null, upcomingRaces: [] }));
   const nextRacePromise = raceContextPromise.then((r) => r.nextRace).catch(() => null);
   const upcomingRacesPromise = raceContextPromise.then((r) => r.upcomingRaces).catch(() => []);
