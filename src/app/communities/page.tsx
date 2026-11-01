@@ -138,13 +138,19 @@ export default async function GroupsPage({ searchParams }: { searchParams: Group
 }
 
 async function GroupsHome({ uid }: { uid: string }) {
-  const [season, memberships] = await Promise.all([getCurrentSeason(), getUserMemberships(uid)]);
+  const [season, memberships] = await Promise.all([
+    getCurrentSeason().catch(() => new Date().getUTCFullYear()),
+    getUserMemberships(uid).catch(() => []),
+  ]);
   const groupIds = [...new Set(memberships.map((m) => m.group_id))];
 
   // Start all section queries in parallel immediately on the server so none waits in a waterfall,
   // then only await `groups` for the app shell while each widget's own <Suspense> boundary replaces
   // its skeleton independently as its promise resolves.
-  const groupsPromise = getUserGroups(uid, { memberships, includeStandings: false });
+  const groupsPromise = getUserGroups(uid, { memberships, includeStandings: false }).catch((err) => {
+    console.error("getUserGroups:", err);
+    return [];
+  });
   const crowdVsModelPromise = groupsPromise.then((groups) =>
     getCrowdVsModel(
       groups.map((g) => ({ id: g.id, name: g.name, avatarUrl: g.avatarUrl })),
@@ -154,25 +160,44 @@ async function GroupsHome({ uid }: { uid: string }) {
       return null;
     }),
   );
-  const feedPromise = listFeedPosts(uid, { joinedGroupIds: groupIds });
-  const predictionsPromise = listMyPredictions(uid, 5, { groupIds });
+  const feedPromise = listFeedPosts(uid, { joinedGroupIds: groupIds }).catch((err) => {
+    console.error("listFeedPosts:", err);
+    return { posts: [], nextCursor: null };
+  });
+  const predictionsPromise = listMyPredictions(uid, 5, { groupIds }).catch((err) => {
+    console.error("listMyPredictions:", err);
+    return [];
+  });
   const predictionsBundlePromise = predictionsPromise.then(async (predictions) => {
     const raceIds = predictions.map((p) => p.raceId);
     const trendIds = predictions.filter((p) => p.entryCount > 0).map((p) => p.id);
     const [{ driversByRace, modelByRace }, initialTrends] = await Promise.all([
-      getDriversAndModelByRace(raceIds),
+      getDriversAndModelByRace(raceIds).catch(() => ({ driversByRace: {}, modelByRace: {} })),
       trendIds.length > 0
         ? getPredictionTrends(trendIds, uid, { memberGroupIds: groupIds }).catch(() => ({}) as Record<string, PredictionTrend>)
         : Promise.resolve({} as Record<string, PredictionTrend>),
     ]);
     return { predictions, driversByRace, modelByRace, initialTrends };
-  });
-  const raceContextPromise = getRaceContext(season);
-  const nextRacePromise = raceContextPromise.then((r) => r.nextRace);
-  const upcomingRacesPromise = raceContextPromise.then((r) => r.upcomingRaces);
+  }).catch(() => EMPTY_PREDICTIONS_BUNDLE);
+  const raceContextPromise = getRaceContext(season).catch(() => ({ nextRace: null, upcomingRaces: [] }));
+  const nextRacePromise = raceContextPromise.then((r) => r.nextRace).catch(() => null);
+  const upcomingRacesPromise = raceContextPromise.then((r) => r.upcomingRaces).catch(() => []);
   // Reads the previous visit timestamp and stamps a new one - so it must run exactly once per
   // page load, here, not inside a client component that could re-run and collapse the window.
-  const pulsePromise = getCommunityPulse(uid, { groupIds });
+  const pulsePromise = getCommunityPulse(uid, { groupIds }).catch((err) => {
+    console.error("getCommunityPulse:", err);
+    return {
+      hasPriorVisit: false,
+      since: null,
+      newPosts: 0,
+      repliesToYou: 0,
+      newPredictionEntries: 0,
+      openPredictions: 0,
+      mostActive: null,
+      mostDiscussed: null,
+      predictionPulse: null,
+    };
+  });
   // A few public communities to suggest (the same cached query the Discover sheet uses).
   const suggestionsPromise = groupsPromise
     .then((groups) =>

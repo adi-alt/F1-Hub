@@ -574,9 +574,9 @@ function AggregateFeedStream({
   renderList: (items: FeedItem[], showGroup: boolean) => React.ReactNode;
   onWritePost: () => void;
 }) {
-  const initial = useStreamed(feedSource);
-  const [posts, setPosts] = useState(initial.posts);
-  const [cursor, setCursor] = useState(initial.nextCursor);
+  const initial = useStreamed(feedSource) ?? { posts: [], nextCursor: null };
+  const [posts, setPosts] = useState(initial.posts ?? []);
+  const [cursor, setCursor] = useState(initial.nextCursor ?? null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
@@ -642,12 +642,14 @@ function AggregateFeedStream({
       const res = await fetch(`/api/groups/feed?feedType=${feedTypeRef.current}&cursor=${encodeURIComponent(cur)}`);
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as { posts: FeedPost[]; nextCursor: string | null };
-      const next = body.nextCursor === cur ? null : body.nextCursor;
-      setPosts((prev) => [...prev, ...body.posts]);
+      const next = !body.posts?.length || body.nextCursor === cur ? null : body.nextCursor;
+      setPosts((prev) => [...prev, ...(body.posts ?? [])]);
       setCursor(next);
       cursorRef.current = next;
     } catch {
       setError(true);
+      setCursor(null);
+      cursorRef.current = null;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
