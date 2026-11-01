@@ -1116,12 +1116,13 @@ export function PostComposer({
                 upcomingRaces={upcomingRaces}
               />
             )}
-            <F1DataCardModal
-              open={showDataCardModal}
-              onClose={() => setShowDataCardModal(false)}
-              onSelect={(card) => setDataCard(card)}
-            />
           </AnimatePresence>
+
+          <F1DataCardModal
+            open={showDataCardModal}
+            onClose={() => setShowDataCardModal(false)}
+            onSelect={(card) => setDataCard(card)}
+          />
         </>
       )}
     </div>
