@@ -43,13 +43,23 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    refreshCount();
-    const id = setInterval(refreshCount, POLL_MS);
-    const onFocus = () => document.visibilityState === "visible" && refreshCount();
-    document.addEventListener("visibilitychange", onFocus);
+    if (typeof document === "undefined" || document.visibilityState === "visible") {
+      refreshCount();
+    }
+    const tick = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      refreshCount();
+    };
+    const id = setInterval(tick, POLL_MS);
+    const onVisibilityChange = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        refreshCount();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       clearInterval(id);
-      document.removeEventListener("visibilitychange", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [refreshCount]);
 

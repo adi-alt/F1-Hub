@@ -48,6 +48,9 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const loadingMoreRef = useRef(false);
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
 
   const buildUrl = useCallback(
     (nextCursor?: string) => {
@@ -61,6 +64,8 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
     },
     [query, sort, topics],
   );
+  const buildUrlRef = useRef(buildUrl);
+  buildUrlRef.current = buildUrl;
 
   // First page, refetched whenever the query/topics/sort change. Debounced so typing doesn't fire
   // one request per keystroke.
@@ -100,33 +105,38 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !cursor) return;
+    const cur = cursorRef.current;
+    if (loadingMoreRef.current || !cur) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     setPageError(false);
     try {
-      const res = await fetch(buildUrl(cursor));
+      const res = await fetch(buildUrlRef.current(cur));
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as Page;
+      const next = body.nextCursor === cur ? null : body.nextCursor;
       setCommunities((prev) => {
         const seen = new Set((prev ?? []).map((c) => c.id));
         return [...(prev ?? []), ...body.communities.filter((c) => !seen.has(c.id))];
       });
-      setCursor(body.nextCursor);
+      setCursor(next);
+      cursorRef.current = next;
     } catch {
       // Everything already loaded stays on screen - a failed page never destroys the list.
       setPageError(true);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [buildUrl, cursor, loadingMore]);
+  }, []);
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || !cursor) return;
+    if (!el || !cursor || pageError) return;
     const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { rootMargin: "300px" });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [cursor, loadMore]);
+  }, [cursor, pageError, loadMore]);
 
   const activeFilters = topics.length > 0 || query.trim().length > 0;
 
