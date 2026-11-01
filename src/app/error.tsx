@@ -25,11 +25,10 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
     recordClientError(error);
   }, [error]);
 
-  // Most of what lands here is transient rather than a broken page: a request that went out while
-  // the laptop was waking, the tab was hidden, or the network was still down. Leaving someone on
-  // "Something went wrong" for that - when the very next attempt would succeed - is the wrong
-  // outcome, so the boundary retries itself the moment the page is actually visible and online
-  // again. A real failure simply errors a second time and then stays put, retry spent.
+  // Only retry automatically if the browser actually went offline and came back online.
+  // Never auto-retry on a blind timer: if a page has a persistent server or render error,
+  // remounting this component after reset() creates an infinite 1.2-second reload loop that hammers
+  // serverless functions and burns CPU quota.
   useEffect(() => {
     function attempt() {
       if (retried.current) return;
@@ -39,14 +38,8 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       reset();
     }
 
-    // Covers the case where the page is already visible and online by the time this mounts, which
-    // is what happens when the failed request was the only thing that was ever wrong.
-    const id = setTimeout(attempt, 1200);
-    document.addEventListener("visibilitychange", attempt);
     window.addEventListener("online", attempt);
     return () => {
-      clearTimeout(id);
-      document.removeEventListener("visibilitychange", attempt);
       window.removeEventListener("online", attempt);
     };
   }, [reset]);

@@ -120,7 +120,7 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
       const res = await fetch(buildUrlRef.current(cur));
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as Page;
-      const next = body.nextCursor === cur ? null : body.nextCursor;
+      const next = !body.communities?.length || body.nextCursor === cur ? null : body.nextCursor;
       setCommunities((prev) => {
         const seen = new Set((prev ?? []).map((c) => c.id));
         return [...(prev ?? []), ...body.communities.filter((c) => !seen.has(c.id))];
@@ -130,6 +130,8 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
     } catch {
       // Everything already loaded stays on screen - a failed page never destroys the list.
       setPageError(true);
+      setCursor(null);
+      cursorRef.current = null;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);

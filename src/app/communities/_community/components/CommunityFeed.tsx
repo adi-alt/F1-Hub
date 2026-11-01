@@ -238,15 +238,17 @@ export function CommunityFeed({
       const res = await fetch(`/api/groups/${groupId}/posts${queryString(queryRef.current, cur)}`);
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as { posts: GroupPost[]; nextCursor: string | null };
-      const next = body.nextCursor === cur ? null : body.nextCursor;
+      const next = !body.posts?.length || body.nextCursor === cur ? null : body.nextCursor;
       setPosts((prev) => {
         const seen = new Set(prev.map((p) => p.id));
-        return [...prev, ...body.posts.filter((p) => !seen.has(p.id))];
+        return [...prev, ...(body.posts ?? []).filter((p) => !seen.has(p.id))];
       });
       setCursor(next);
       cursorRef.current = next;
     } catch {
       setPageError(true);
+      setCursor(null);
+      cursorRef.current = null;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
