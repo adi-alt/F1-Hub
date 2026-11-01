@@ -21,17 +21,17 @@ export function SpoilerShield({
   if (revealed) {
     return (
       <div className={`relative group ${className}`}>
-        <div className="flex items-center justify-between pb-1 text-caption text-amber-300/80">
-          <span className="inline-flex items-center gap-1 font-medium">
-            <ShieldAlert className="size-3 text-amber-400" />
-            Spoiler content revealed
+        <div className="flex items-center justify-between pb-1 text-caption text-secondary">
+          <span className="inline-flex items-center gap-1.5 font-medium text-amber-300">
+            <ShieldAlert className="size-3.5 text-amber-400" />
+            Spoiler
           </span>
           <button
             type="button"
             onClick={() => setRevealed(false)}
-            className="inline-flex items-center gap-1 hover:text-amber-200 transition-colors opacity-70 group-hover:opacity-100"
+            className="inline-flex items-center gap-1 text-caption text-tertiary hover:text-primary transition-colors"
           >
-            <EyeOff className="size-3" />
+            <EyeOff className="size-3.5" />
             <span>Hide</span>
           </button>
         </div>
@@ -61,25 +61,10 @@ export function SpoilerShield({
         className="absolute inset-0 flex items-center justify-center p-4 bg-black/40 backdrop-blur-[2px] cursor-pointer group"
         aria-label="Spoiler shield active. Click to reveal content."
       >
-        <div className="flex flex-col sm:flex-row items-center gap-3 rounded-control border border-amber-500/35 bg-surface-1/95 px-4 py-3 shadow-2xl backdrop-blur-xl transition-transform group-hover:scale-[1.02] max-w-sm text-center sm:text-left">
-          <div className="rounded-full bg-amber-500/15 p-2 text-amber-400 shrink-0">
-            <ShieldAlert className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-caption font-semibold text-primary">Spoiler Shield Active</p>
-            <p className="text-caption text-secondary">May contain race or session outcomes</p>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRevealed(true);
-            }}
-            className="sm:ml-auto inline-flex items-center gap-1.5 rounded-control border border-amber-500/40 bg-amber-500/20 px-2.5 py-1 text-caption font-semibold text-amber-300 hover:bg-amber-500/30 transition-colors shrink-0"
-          >
-            <Eye className="size-3.5" />
-            <span>Reveal</span>
-          </button>
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-surface-1/90 px-4 py-2 text-caption font-semibold text-primary shadow-xl backdrop-blur-md transition-transform duration-fast group-hover:scale-105">
+          <Eye className="size-4 text-amber-400" />
+          <span>Spoiler</span>
+          <span className="font-normal text-secondary">· Click to reveal</span>
         </div>
       </div>
     </div>

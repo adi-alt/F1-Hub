@@ -271,7 +271,42 @@ export function PostComposer({
   // server validates against - not a guess, and never shown for a personal post (createPost forces
   // "discussion" there, since there's no community whose vocabulary it could belong to).
   const canPredict = !!targetGroup && postKindsFor(targetGroup.communityType, targetGroup.features).includes("prediction");
-  const isOpen = focused || content.length > 0 || !!mediaPreview || callOpen || pollOpen || gallery.length > 0 || !!dataCard;
+  const [hasEverOpened, setHasEverOpened] = useState(false);
+  const shouldOpen =
+    focused ||
+    content.length > 0 ||
+    title.length > 0 ||
+    !!mediaPreview ||
+    callOpen ||
+    pollOpen ||
+    gallery.length > 0 ||
+    !!dataCard ||
+    showEmoji ||
+    showGif ||
+    showTags ||
+    isSpoiler ||
+    f1Tags.length > 0;
+
+  if (shouldOpen && !hasEverOpened) {
+    setHasEverOpened(true);
+  }
+  const isOpen = hasEverOpened;
+
+  function toggleGif() {
+    setShowEmoji(false);
+    setShowTags(false);
+    setShowGif((v) => !v);
+  }
+  function toggleEmoji() {
+    setShowGif(false);
+    setShowTags(false);
+    setShowEmoji((v) => !v);
+  }
+  function toggleTags() {
+    setShowGif(false);
+    setShowEmoji(false);
+    setShowTags((v) => !v);
+  }
 
   // A blob: URL (createObjectURL below) holds its referenced data in memory until explicitly
   // revoked or the document unloads - real, if minor, for a composer someone can attach/remove
@@ -284,6 +319,7 @@ export function PostComposer({
     clearSavedDraft(draftKey);
     releasePreview();
     setFocused(false);
+    setHasEverOpened(false);
     setTitle("");
     setContent("");
     setGroupId(fixedGroupId ?? "");
@@ -916,10 +952,9 @@ export function PostComposer({
             </div>
           )}
 
-          {/* Active F1 Entity Tags */}
-          {f1Tags.length > 0 && (
+          {/* Active F1 Entity Tags & Spoiler Tag */}
+          {(f1Tags.length > 0 || isSpoiler) && (
             <div className="flex flex-wrap items-center gap-1.5 pl-11 pt-2 text-caption">
-              <span className="text-caption font-semibold uppercase tracking-wider text-tertiary">Topics:</span>
               {f1Tags.map((tag) => (
                 <F1TagChip
                   key={`${tag.category}-${tag.id}`}
@@ -927,37 +962,30 @@ export function PostComposer({
                   onRemove={() => setF1Tags((prev) => prev.filter((t) => !(t.category === tag.category && t.id === tag.id)))}
                 />
               ))}
+              {isSpoiler && (
+                <span className="inline-flex items-center gap-1.5 rounded-control border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-caption font-medium text-amber-300">
+                  <Icon icon={ShieldAlert} size={16} className="size-3.5 text-amber-400" />
+                  <span>Spoiler</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsSpoiler(false)}
+                    aria-label="Remove spoiler tag"
+                    className="ml-0.5 text-amber-400/70 hover:text-amber-100 transition-colors"
+                  >
+                    <Icon icon={X} size={16} className="size-3" />
+                  </button>
+                </span>
+              )}
               {f1Tags.length < 3 && (
                 <button
                   type="button"
-                  onClick={() => setShowTags(true)}
+                  onClick={toggleTags}
                   className="inline-flex items-center gap-1 rounded-control border border-dashed border-white/20 bg-white/[0.03] px-2 py-0.5 text-caption text-secondary hover:border-white/35 hover:text-primary transition-colors"
                 >
-                  <Icon icon={Plus} size={16} />
-                  <span>Add</span>
+                  <Icon icon={Plus} size={16} className="size-3.5" />
+                  <span>Add topic</span>
                 </button>
               )}
-            </div>
-          )}
-
-          {/* Spoiler Shield Active Explainer Banner */}
-          {isSpoiler && (
-            <div className="pl-11 pt-2">
-              <div className="flex items-center justify-between gap-3 rounded-control border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-caption text-amber-200">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Icon icon={ShieldAlert} size={16} className="text-amber-400 shrink-0" />
-                  <p className="min-w-0 flex-1 text-caption text-amber-200 leading-snug">
-                    <strong className="font-semibold text-amber-300">Spoiler Shield ON:</strong> Blurs post content & photos in feeds with a click-to-reveal barrier to protect race & qualifying results for fans watching on replay.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSpoiler(false)}
-                  className="shrink-0 rounded-control px-2 py-0.5 text-caption font-semibold text-amber-300 hover:text-amber-100 hover:bg-amber-500/20 transition-colors"
-                >
-                  Turn off
-                </button>
-              </div>
             </div>
           )}
 
@@ -981,9 +1009,31 @@ export function PostComposer({
 
           {/* The toolbar: monochrome tools on the left, where the post goes and the Post button on the right. */}
           <div className="mt-1.5 flex flex-wrap items-center gap-0.5 pl-9">
-            <ToolButton onClick={() => fileInputRef.current?.click()} icon={Image} label="Photos (up to 4)" />
-            <ToolButton ref={gifRef} onClick={() => setShowGif((v) => !v)} active={showGif} icon={ImagePlay} label="GIF" />
-            <ToolButton ref={emojiRef} onClick={() => setShowEmoji((v) => !v)} active={showEmoji} icon={FaceSlightlySmiling} label="Emoji" />
+            <ToolButton
+              onClick={() => fileInputRef.current?.click()}
+              icon={Image}
+              label="Photos (up to 4)"
+              tooltipTitle="Add Photos"
+              tooltipDesc="Upload up to 4 images to create a gallery"
+            />
+            <ToolButton
+              ref={gifRef}
+              onClick={toggleGif}
+              active={showGif}
+              icon={ImagePlay}
+              label="GIF"
+              tooltipTitle="Insert GIF"
+              tooltipDesc="Search and attach animated GIFs from Klipy"
+            />
+            <ToolButton
+              ref={emojiRef}
+              onClick={toggleEmoji}
+              active={showEmoji}
+              icon={FaceSlightlySmiling}
+              label="Emoji"
+              tooltipTitle="Add Emoji"
+              tooltipDesc="Insert emoji expressions into your post"
+            />
             <ToolButton
               onClick={() => {
                 setPollOpen((v) => {
@@ -996,39 +1046,69 @@ export function PostComposer({
               active={pollOpen}
               icon={BarChart2}
               label="Poll"
+              tooltipTitle="Create Poll"
+              tooltipDesc="Add an interactive voting poll with 2–6 choices"
             />
             <ToolButton
               ref={tagRef}
-              onClick={() => setShowTags((v) => !v)}
+              onClick={toggleTags}
               active={showTags || f1Tags.length > 0}
               icon={Tag}
-              label={f1Tags.length > 0 ? `F1 Topics (${f1Tags.length}/3)` : "Tag F1 topic (driver, team, session, GP)"}
+              label={f1Tags.length > 0 ? `F1 Topics (${f1Tags.length}/3)` : "Tag F1 topic"}
+              tooltipTitle="F1 Topic Tags"
+              tooltipDesc="Tag drivers, constructors, circuits, or sessions"
             />
             <ToolButton
               onClick={() => setIsSpoiler((v) => !v)}
               active={isSpoiler}
               activeTone="amber"
               icon={ShieldAlert}
-              label={
-                isSpoiler
-                  ? "Spoiler Shield ON (click to remove)"
-                  : "Spoiler Shield: Blur post in feed to hide race results & outcomes until clicked"
-              }
+              label={isSpoiler ? "Spoiler Shield ON" : "Spoiler Shield"}
+              tooltipTitle="Spoiler Shield"
+              tooltipDesc={isSpoiler ? "Active: post will be blurred in feeds until clicked" : "Blur post in feed with a click-to-reveal barrier"}
             />
             <ToolButton
               onClick={() => setShowDataCardModal(true)}
               active={!!dataCard}
               activeTone="cyan"
               icon={Activity}
-              label={dataCard ? `F1 Data: ${dataCard.kind} attached` : "Attach F1 Data Card (Telemetry, Stints, Win Odds)"}
+              label={dataCard ? `F1 Data: ${dataCard.kind} attached` : "Attach F1 Data Card"}
+              tooltipTitle="F1 Data Card"
+              tooltipDesc="Embed live telemetry deltas, tire stints, or win odds"
             />
             <ComposeAssist draft={content} onReplace={setContent} />
-            {canPredict && <ToolButton onClick={() => setIsPrediction((v) => !v)} active={isPrediction} icon={Compass} label="Prediction" />}
+            {canPredict && (
+              <ToolButton
+                onClick={() => setIsPrediction((v) => !v)}
+                active={isPrediction}
+                icon={Compass}
+                label="Prediction"
+                tooltipTitle="Prediction Discussion"
+                tooltipDesc="Mark this post as prediction analysis"
+              />
+            )}
             {/* A different thing from the tag above: that marks THIS post as prediction talk, this opens a real
                 round the community can enter. Only where the viewer holds the permission; the server re-checks. */}
-            {canOpenPrediction && <ToolButton onClick={() => setMode("prediction")} icon={Crosshair} label="New round" />}
+            {canOpenPrediction && (
+              <ToolButton
+                onClick={() => setMode("prediction")}
+                icon={Crosshair}
+                label="New round"
+                tooltipTitle="Open Prediction Round"
+                tooltipDesc="Create a competitive prediction round for this community"
+              />
+            )}
             {/* Takes with receipts: claim something about this weekend's race and have it graded against the result. */}
-            {callableRace && <ToolButton onClick={() => setCallOpen((v) => !v)} active={callOpen} icon={Target} label="Make a call" />}
+            {callableRace && (
+              <ToolButton
+                onClick={() => setCallOpen((v) => !v)}
+                active={callOpen}
+                icon={Target}
+                label="Make a call"
+                tooltipTitle="Make a Call"
+                tooltipDesc="Stake a prediction on this weekend's race with receipts"
+              />
+            )}
 
             <input
               ref={fileInputRef}
@@ -1129,12 +1209,14 @@ export function PostComposer({
   );
 }
 
-/** A toolbar tool: an icon-only 28px ghost button (quieter than Post), named by its tooltip and accessible label. */
+/** A toolbar tool: an icon-only 28px ghost button with an instant custom tooltip explaining what the option does. */
 function ToolButton({
   ref,
   onClick,
   icon,
   label,
+  tooltipTitle,
+  tooltipDesc,
   active,
   activeTone = "default",
 }: {
@@ -1142,28 +1224,49 @@ function ToolButton({
   onClick: () => void;
   icon: LucideIcon;
   label: string;
+  tooltipTitle?: string;
+  tooltipDesc?: string;
   active?: boolean;
   activeTone?: "default" | "amber" | "cyan";
 }) {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <button
-      ref={ref}
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      aria-label={label}
-      title={label}
-      className={`flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
-        active
-          ? activeTone === "amber"
-            ? "border border-amber-500/40 bg-amber-500/20 text-amber-300"
-            : activeTone === "cyan"
-              ? "border border-cyan-500/40 bg-cyan-500/20 text-cyan-300"
-              : "bg-white/[0.1] text-primary"
-          : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
-      }`}
+    <div
+      className="relative inline-flex items-center justify-center"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <Icon icon={icon} size={16} />
-    </button>
+      <button
+        ref={ref}
+        type="button"
+        onClick={onClick}
+        aria-pressed={active}
+        aria-label={label}
+        className={`flex size-7 shrink-0 items-center justify-center rounded-control transition-colors duration-fast focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring ${
+          active
+            ? activeTone === "amber"
+              ? "border border-amber-500/40 bg-amber-500/20 text-amber-300"
+              : activeTone === "cyan"
+                ? "border border-cyan-500/40 bg-cyan-500/20 text-cyan-300"
+                : "bg-white/[0.1] text-primary"
+            : "text-tertiary hover:bg-white/[0.07] hover:text-primary"
+        }`}
+      >
+        <Icon icon={icon} size={16} />
+      </button>
+
+      {/* Instant Custom Tooltip */}
+      {hovered && (tooltipTitle || tooltipDesc) && (
+        <div
+          role="tooltip"
+          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 rounded-control border border-white/12 bg-surface-1/95 px-2.5 py-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 whitespace-nowrap text-left"
+        >
+          {tooltipTitle && <p className="text-caption font-semibold text-primary">{tooltipTitle}</p>}
+          {tooltipDesc && <p className="text-caption text-secondary">{tooltipDesc}</p>}
+          <div className="absolute left-1/2 top-full -translate-x-1/2 -mt-px border-4 border-transparent border-t-surface-1" />
+        </div>
+      )}
+    </div>
   );
 }
