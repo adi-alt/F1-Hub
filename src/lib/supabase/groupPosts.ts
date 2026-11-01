@@ -467,11 +467,44 @@ export async function createPost(
 
   if (groupId !== null) {
     const role = await requireMember(groupId, uid);
-    const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("moderation_enabled, community_type, features, permissions").eq("id", groupId).maybeSingle();
+
+    const { data: memberData } = await supabaseAdmin
+      .from("group_members")
+      .select("muted_until, mute_reason")
+      .eq("group_id", groupId)
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (memberData?.muted_until && new Date(memberData.muted_until).getTime() > Date.now()) {
+      const untilStr = new Date(memberData.muted_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const reasonPart = memberData.mute_reason ? ` Reason: ${memberData.mute_reason}` : "";
+      throw new ServiceError(`You are temporarily muted in this community until ${untilStr}.${reasonPart}`, 403);
+    }
+
+    const { data: group, error: groupError } = await supabaseAdmin.from("groups").select("moderation_enabled, community_type, features, permissions, slow_mode_seconds").eq("id", groupId).maybeSingle();
     if (groupError) throw new Error(`createPost(${groupId}): ${groupError.message}`);
 
     if (!canDo(group?.permissions, "post", role)) {
       throw new ServiceError("Only certain roles can post in this community.", 403);
+    }
+
+    if (role === "member" && group?.slow_mode_seconds && group.slow_mode_seconds > 0) {
+      const { data: recentPost } = await supabaseAdmin
+        .from("group_posts")
+        .select("created_at")
+        .eq("group_id", groupId)
+        .eq("user_id", uid)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentPost?.created_at) {
+        const elapsedSec = (Date.now() - new Date(recentPost.created_at).getTime()) / 1000;
+        if (elapsedSec < group.slow_mode_seconds) {
+          const waitSec = Math.ceil(group.slow_mode_seconds - elapsedSec);
+          throw new ServiceError(`Slow mode is active (${group.slow_mode_seconds}s). Please wait ${waitSec}s before posting again.`, 429);
+        }
+      }
     }
 
     if (input.kind) {
@@ -1218,6 +1251,19 @@ export async function addComment(
       }
     }
 
+    const { data: memberData } = await supabaseAdmin
+      .from("group_members")
+      .select("muted_until, mute_reason")
+      .eq("group_id", groupId)
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (memberData?.muted_until && new Date(memberData.muted_until).getTime() > Date.now()) {
+      const untilStr = new Date(memberData.muted_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const reasonPart = memberData.mute_reason ? ` Reason: ${memberData.mute_reason}` : "";
+      throw new ServiceError(`You are temporarily muted in this community until ${untilStr}.${reasonPart}`, 403);
+    }
+
     if (!canDo(group.permissions, "comment", role)) throw new ServiceError("Only certain roles can reply in this community.", 403);
   }
 
@@ -1266,13 +1312,23 @@ export async function getPostGroupId(postId: string): Promise<string | null> {
   return (data.group_id as string | null) ?? null;
 }
 
-export async function moderatePost(groupId: string, postId: string, uid: string, action: "approve" | "reject"): Promise<void> {
+export async function moderatePost(groupId: string, postId: string, uid: string, action: "approve" | "reject", reason?: string): Promise<void> {
   const role = await requireMember(groupId, uid);
   if (role === "member") throw new ServiceError("Only a group admin or moderator can moderate posts.", 403);
 
   const status: PostStatus = action === "approve" ? "published" : "rejected";
-  const { error } = await supabaseAdmin.from("group_posts").update({ status }).eq("id", postId).eq("group_id", groupId);
+  const patch: Record<string, unknown> = { status };
+  if (action === "reject" && reason) {
+    patch.removal_reason = reason.trim().slice(0, 300);
+  }
+  const { error } = await supabaseAdmin.from("group_posts").update(patch).eq("id", postId).eq("group_id", groupId);
   if (error) throw new Error(`moderatePost(${postId}): ${error.message}`);
-  await logModeration({ groupId, actorId: uid, action: action === "approve" ? "post_approved" : "post_removed", postId });
-  await notifyPostModerated(groupId, postId, uid, action === "approve");
+  await logModeration({
+    groupId,
+    actorId: uid,
+    action: action === "approve" ? "post_approved" : "post_removed",
+    postId,
+    excerpt: reason ? `Reason: ${reason}` : undefined,
+  });
+  await notifyPostModerated(groupId, postId, uid, action === "approve", reason);
 }

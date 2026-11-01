@@ -26,6 +26,7 @@ import { computeLeagueTable } from "@/lib/leagueTable";
 import { ServiceError } from "@/services/errors";
 import { groupHref } from "@/lib/routes";
 import { notifyCommunityDeleted, notifyInvited, notifyJoinDecision, notifyJoinRequest, notifyRemoved, notifyRoleChanged } from "@/lib/notificationEvents";
+import { logModeration } from "@/lib/supabase/moderationLog";
 import { renderEmail } from "@/lib/email/layout";
 
 // Tagged AND short-TTL, not one or the other: every in-app mutation below that actually changes
@@ -128,6 +129,8 @@ export type GroupMember = {
   role: GroupRole;
   joinedAt: string;
   points: number;
+  mutedUntil?: string | null;
+  muteReason?: string | null;
 };
 
 export type GroupDetail = CommunityShape & {
@@ -147,6 +150,8 @@ export type GroupDetail = CommunityShape & {
   createdAt: string;
   myRole: GroupRole;
   members: GroupMember[];
+  slowModeSeconds: number;
+  rules: string[];
 };
 
 export type LeaderboardRow = {
@@ -747,7 +752,7 @@ export async function getGroupDetail(groupId: string, uid: string, opts: { role?
 
   const [{ data: group, error: groupError }, { data: members, error: membersError }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("groups").select("*").eq("id", groupId).single()),
-    queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role, joined_at").eq("group_id", groupId).order("joined_at")),
+    queryWithRetry(() => supabaseAdmin.from("group_members").select("user_id, role, joined_at, muted_until, mute_reason").eq("group_id", groupId).order("joined_at")),
   ]);
   // PGRST116 ("no rows") from .single() is the expected shape of "this group doesn't exist" -
   // not a real failure, so it falls through to the existing 404 below instead of the generic
@@ -771,6 +776,8 @@ export async function getGroupDetail(groupId: string, uid: string, opts: { role?
     createdBy: group.created_by as string,
     createdAt: group.created_at as string,
     myRole,
+    slowModeSeconds: (group.slow_mode_seconds as number | null) ?? 0,
+    rules: Array.isArray(group.rules) ? (group.rules as string[]) : [],
     members: (members ?? []).map((m) => ({
       userId: m.user_id as string,
       displayName: profileById.get(m.user_id as string)?.display_name ?? null,
@@ -779,6 +786,8 @@ export async function getGroupDetail(groupId: string, uid: string, opts: { role?
       joinedAt: m.joined_at as string,
       points: profileById.get(m.user_id as string)?.points_balance ?? 0,
       avatar: profileById.get(m.user_id as string)?.avatar ?? null,
+      mutedUntil: (m.muted_until as string | null) ?? null,
+      muteReason: (m.mute_reason as string | null) ?? null,
     })),
   };
 }
@@ -862,6 +871,8 @@ export async function updateGroupSettings(
     tags?: string[];
     features?: CommunityFeatures;
     permissions?: CommunityPermissions;
+    slowModeSeconds?: number;
+    rules?: string[];
   },
 ): Promise<void> {
   await requireAdmin(groupId, uid);
@@ -911,6 +922,14 @@ export async function updateGroupSettings(
     }
     patch.permissions = updates.permissions;
   }
+  if (updates.slowModeSeconds !== undefined) {
+    const sec = Math.max(0, Math.min(3600, Math.floor(updates.slowModeSeconds)));
+    patch.slow_mode_seconds = sec;
+  }
+  if (updates.rules !== undefined) {
+    if (!Array.isArray(updates.rules)) throw new ServiceError("Rules must be an array.", 400);
+    patch.rules = updates.rules.map((r) => String(r).trim()).filter(Boolean).slice(0, 10);
+  }
   if (Object.keys(patch).length === 0) return;
 
   const { error } = await supabaseAdmin.from("groups").update(patch).eq("id", groupId);
@@ -935,6 +954,11 @@ export async function updateMemberRole(groupId: string, actingUid: string, targe
   const targetRole = await getMemberRole(groupId, targetUid);
   if (!targetRole) throw new ServiceError("That user isn't a member of this group.", 404);
 
+  const { data: group } = await supabaseAdmin.from("groups").select("created_by").eq("id", groupId).maybeSingle();
+  if (group?.created_by === targetUid && newRole !== "admin") {
+    throw new ServiceError("The community owner cannot be demoted. Transfer ownership first.", 400);
+  }
+
   if (targetRole === "admin" && newRole !== "admin" && (await countAdmins(groupId)) <= 1) {
     throw new ServiceError("A group needs at least one admin - promote someone else first.", 400);
   }
@@ -953,6 +977,11 @@ export async function removeMember(groupId: string, actingUid: string, targetUid
   if (opts.ban && targetUid === actingUid) throw new ServiceError("You can't ban yourself - leave the community instead.", 400);
   const targetRole = await getMemberRole(groupId, targetUid);
 
+  const { data: group } = await supabaseAdmin.from("groups").select("created_by").eq("id", groupId).maybeSingle();
+  if (group?.created_by === targetUid) {
+    throw new ServiceError("The community owner cannot be removed. Transfer ownership or delete the community instead.", 400);
+  }
+
   if (targetRole === "admin" && (await countAdmins(groupId)) <= 1) {
     throw new ServiceError("A group needs at least one admin - promote someone else before removing yourself.", 400);
   }
@@ -970,6 +999,92 @@ export async function removeMember(groupId: string, actingUid: string, targetUid
   if (error) throw new Error(`removeMember(${groupId}, ${targetUid}): ${error.message}`);
   expireTag(GROUP_DISCOVERY_TAG); // member count changed
   await notifyRemoved(groupId, targetUid, actingUid, !!opts.ban);
+}
+
+/** Transfers primary ownership of a community from the creator/owner to another existing member.
+ * The recipient is automatically promoted to admin if they are not already one. */
+export async function transferOwnership(groupId: string, actingUid: string, targetUid: string): Promise<void> {
+  const { data: group, error: groupErr } = await supabaseAdmin.from("groups").select("created_by, name").eq("id", groupId).maybeSingle();
+  if (groupErr || !group) throw new ServiceError("Group not found.", 404);
+  if (group.created_by !== actingUid) throw new ServiceError("Only the community owner can transfer ownership.", 403);
+  if (actingUid === targetUid) throw new ServiceError("You already own this community.", 400);
+
+  const targetRole = await getMemberRole(groupId, targetUid);
+  if (!targetRole) throw new ServiceError("Target user is not a member of this community.", 404);
+
+  // Promote target user to admin if not already
+  if (targetRole !== "admin") {
+    const { error: roleErr } = await supabaseAdmin.from("group_members").update({ role: "admin" }).eq("group_id", groupId).eq("user_id", targetUid);
+    if (roleErr) throw new Error(`transferOwnership: ${roleErr.message}`);
+  }
+
+  const { error: ownerErr } = await supabaseAdmin.from("groups").update({ created_by: targetUid }).eq("id", groupId);
+  if (ownerErr) throw new Error(`transferOwnership: ${ownerErr.message}`);
+
+  await logModeration({
+    groupId,
+    actorId: actingUid,
+    action: "ownership_transferred",
+    targetUserId: targetUid,
+  });
+  expireTag(GROUP_DISCOVERY_TAG);
+}
+
+/** Temporarily mutes a member from posting and replying in this community.
+ * Protected: Admins and fellow moderators cannot be muted. */
+export async function muteMember(
+  groupId: string,
+  actingUid: string,
+  targetUid: string,
+  durationSeconds: number,
+  reason?: string,
+): Promise<void> {
+  const actingRole = await requireMember(groupId, actingUid);
+  if (actingRole === "member") throw new ServiceError("Only moderators and admins can mute members.", 403);
+  if (actingUid === targetUid) throw new ServiceError("You cannot mute yourself.", 400);
+
+  const targetRole = await getMemberRole(groupId, targetUid);
+  if (!targetRole) throw new ServiceError("User is not a member.", 404);
+  if (targetRole === "admin" || (actingRole === "moderator" && targetRole === "moderator")) {
+    throw new ServiceError("You cannot mute an administrator or fellow moderator.", 403);
+  }
+
+  const duration = Math.max(60, Math.min(30 * 86400, Math.floor(durationSeconds)));
+  const mutedUntil = new Date(Date.now() + duration * 1000).toISOString();
+  const trimmedReason = reason?.trim().slice(0, 300) || null;
+
+  const { error } = await supabaseAdmin.from("group_members").update({
+    muted_until: mutedUntil,
+    mute_reason: trimmedReason,
+  }).eq("group_id", groupId).eq("user_id", targetUid);
+  if (error) throw new Error(`muteMember(${groupId}, ${targetUid}): ${error.message}`);
+
+  await logModeration({
+    groupId,
+    actorId: actingUid,
+    action: "member_muted",
+    targetUserId: targetUid,
+    excerpt: trimmedReason ? `Muted for ${Math.round(duration / 60)}m: ${trimmedReason}` : `Muted for ${Math.round(duration / 60)}m`,
+  });
+}
+
+/** Unmutes a muted member immediately. */
+export async function unmuteMember(groupId: string, actingUid: string, targetUid: string): Promise<void> {
+  const actingRole = await requireMember(groupId, actingUid);
+  if (actingRole === "member") throw new ServiceError("Only moderators and admins can unmute members.", 403);
+
+  const { error } = await supabaseAdmin.from("group_members").update({
+    muted_until: null,
+    mute_reason: null,
+  }).eq("group_id", groupId).eq("user_id", targetUid);
+  if (error) throw new Error(`unmuteMember(${groupId}, ${targetUid}): ${error.message}`);
+
+  await logModeration({
+    groupId,
+    actorId: actingUid,
+    action: "member_unmuted",
+    targetUserId: targetUid,
+  });
 }
 
 export type GroupBan = { userId: string; displayName: string | null; username: string | null; reason: string | null; createdAt: string };
@@ -1355,6 +1470,31 @@ export async function decideJoinRequest(groupId: string, actingUid: string, targ
     .eq("user_id", targetUid);
   if (error) throw new Error(`decideJoinRequest(${groupId}): ${error.message}`);
   await notifyJoinDecision(groupId, targetUid, actingUid, decision === "approve");
+}
+
+/** Bulk decides (approves or rejects) all currently pending join requests in this community. */
+export async function decideAllJoinRequests(groupId: string, actingUid: string, decision: "approve" | "reject"): Promise<{ count: number }> {
+  const role = await requireMember(groupId, actingUid);
+  if (role === "member") throw new ServiceError("Only admins and moderators can decide join requests.", 403);
+
+  const { data: requests, error } = await supabaseAdmin
+    .from("group_join_requests")
+    .select("user_id")
+    .eq("group_id", groupId)
+    .eq("status", "pending");
+  if (error) throw new Error(`decideAllJoinRequests(${groupId}): ${error.message}`);
+  if (!requests || requests.length === 0) return { count: 0 };
+
+  let count = 0;
+  for (const req of requests) {
+    try {
+      await decideJoinRequest(groupId, actingUid, req.user_id as string, decision);
+      count++;
+    } catch {
+      // Continue with other requests if one fails
+    }
+  }
+  return { count };
 }
 
 export async function countPendingJoinRequests(groupId: string): Promise<number> {

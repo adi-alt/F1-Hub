@@ -36,11 +36,12 @@ import { AvatarUpload } from "../../../components/AvatarUpload";
 import { BannerUpload } from "../../../components/BannerUpload";
 import { GroupBanner } from "../../../components/GroupBanner";
 
-type Section = "general" | "appearance" | "requests" | "reports" | "log" | "features" | "permissions" | "delete";
+type Section = "general" | "appearance" | "rules" | "requests" | "reports" | "log" | "features" | "permissions" | "delete";
 
 const SECTIONS: { value: Section; label: string }[] = [
   { value: "general", label: "General" },
   { value: "appearance", label: "Appearance" },
+  { value: "rules", label: "Rules" },
   { value: "requests", label: "Join requests" },
   { value: "reports", label: "Reports" },
   { value: "log", label: "Log" },
@@ -118,6 +119,7 @@ export function ManageTab({ group, pendingRequests = 0, onDirtyChange }: { group
       <div className={items.length > 1 ? "pt-5" : ""}>
         {panel("general", <GeneralSection group={group} />)}
         {panel("appearance", <AppearanceSection group={group} />)}
+        {panel("rules", <RulesSection group={group} />)}
         {panel("requests", <JoinRequestsSection group={group} pendingRequests={pendingRequests} />)}
         {panel("reports", <ReportsSection group={group} />)}
         {panel("log", <ModerationLogSection group={group} />)}
@@ -316,12 +318,25 @@ function AppearanceSection({ group }: { group: GroupDetail }) {
   );
 }
 
+const SLOW_MODE_OPTIONS = [
+  { value: "0", label: "Off", description: "Members can post without delay" },
+  { value: "15", label: "15 seconds", description: "Light discussion cooldown" },
+  { value: "30", label: "30 seconds", description: "Standard live session pace" },
+  { value: "60", label: "60 seconds", description: "Recommended during live race sessions" },
+  { value: "120", label: "2 minutes", description: "High-traffic watch cooldown" },
+  { value: "300", label: "5 minutes", description: "Strict anti-spam throttle" },
+];
+
 /** Which sections the community shows, and whether posts are reviewed first: one list of switches, one Save. */
 function FeaturesSection({ group }: { group: GroupDetail }) {
   const { save, status, error } = useSave(group.id);
   const [features, setFeatures] = useState(group.features);
   const [moderationEnabled, setModerationEnabled] = useState(group.moderationEnabled);
-  const dirty = JSON.stringify(features) !== JSON.stringify(group.features) || moderationEnabled !== group.moderationEnabled;
+  const [slowModeSeconds, setSlowModeSeconds] = useState(group.slowModeSeconds ?? 0);
+  const dirty =
+    JSON.stringify(features) !== JSON.stringify(group.features) ||
+    moderationEnabled !== group.moderationEnabled ||
+    slowModeSeconds !== (group.slowModeSeconds ?? 0);
   useDirty("features", dirty);
   const enabled = resolveModules(group.communityType, features);
   const toggles = toggleableModules(group.communityType);
@@ -345,6 +360,16 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
         <SettingRow title="Review posts first" description="Members' posts wait for an admin or moderator, who approve them in the feed. Admins' and moderators' own posts go straight up.">
           <Switch checked={moderationEnabled} onChange={setModerationEnabled} label="Review posts first" />
         </SettingRow>
+        <SettingRow title="Slow mode" description="Require regular members to wait between posts during heated sessions. Admins and moderators are exempt.">
+          <Picker
+            options={SLOW_MODE_OPTIONS}
+            value={String(slowModeSeconds)}
+            onChange={(val) => setSlowModeSeconds(Number(val))}
+            ariaLabel="Slow mode cooldown"
+            className="w-44"
+            align="end"
+          />
+        </SettingRow>
       </ul>
 
       <SaveRow
@@ -354,8 +379,88 @@ function FeaturesSection({ group }: { group: GroupDetail }) {
         onDiscard={() => {
           setFeatures(group.features);
           setModerationEnabled(group.moderationEnabled);
+          setSlowModeSeconds(group.slowModeSeconds ?? 0);
         }}
-        onSave={() => void save({ features, moderationEnabled })}
+        onSave={() => void save({ features, moderationEnabled, slowModeSeconds })}
+      />
+    </section>
+  );
+}
+
+function RulesSection({ group }: { group: GroupDetail }) {
+  const { save, status, error } = useSave(group.id);
+  const [rules, setRules] = useState<string[]>(group.rules ?? []);
+  const [newRule, setNewRule] = useState("");
+  const dirty = JSON.stringify(rules) !== JSON.stringify(group.rules ?? []);
+  useDirty("rules", dirty);
+
+  function addRule() {
+    const trimmed = newRule.trim();
+    if (!trimmed || rules.length >= 10) return;
+    setRules((prev) => [...prev, trimmed]);
+    setNewRule("");
+  }
+
+  function removeRule(index: number) {
+    setRules((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function updateRule(index: number, val: string) {
+    setRules((prev) => prev.map((r, i) => (i === index ? val : r)));
+  }
+
+  return (
+    <section aria-label="Rules">
+      <Intro>Set guidelines for discussions, spoilers, and member conduct in this community (up to 10 rules).</Intro>
+      <div className="space-y-3">
+        {rules.map((rule, idx) => (
+          <div key={idx} className="flex items-center gap-3">
+            <span className="w-6 shrink-0 text-caption font-semibold text-tertiary">{idx + 1}.</span>
+            <input
+              type="text"
+              value={rule}
+              onChange={(e) => updateRule(idx, e.target.value)}
+              className="flex-1 rounded-control border border-white/10 bg-surface-1 px-3 py-1.5 text-body-sm text-primary"
+              maxLength={150}
+            />
+            <Button variant="ghost" size="sm" onClick={() => removeRule(idx)}>
+              Remove
+            </Button>
+          </div>
+        ))}
+
+        {rules.length < 10 && (
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              type="text"
+              placeholder="e.g. 1. Use Spoiler Shield during live race sessions..."
+              value={newRule}
+              onChange={(e) => setNewRule(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addRule();
+                }
+              }}
+              className="flex-1 rounded-control border border-white/10 bg-surface-1 px-3 py-1.5 text-body-sm text-primary placeholder:text-tertiary"
+              maxLength={150}
+            />
+            <Button variant="secondary" size="sm" onClick={addRule} disabled={!newRule.trim()}>
+              Add rule
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <SaveRow
+        status={status}
+        error={error}
+        dirty={dirty}
+        onDiscard={() => {
+          setRules(group.rules ?? []);
+          setNewRule("");
+        }}
+        onSave={() => void save({ rules: rules.filter((r) => r.trim().length > 0) })}
       />
     </section>
   );
@@ -394,6 +499,7 @@ function JoinRequestsSection({ group, pendingRequests }: { group: GroupDetail; p
   const router = useRouter();
   const [requests, setRequests] = useState<JoinRequest[] | null | "error">(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -429,9 +535,45 @@ function JoinRequestsSection({ group, pendingRequests }: { group: GroupDetail; p
     router.refresh();
   }
 
+  async function decideAll(action: "approve_all" | "reject_all") {
+    setBulkBusy(true);
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/join-requests`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).catch(() => null);
+    setBulkBusy(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setError(body?.error ?? "Couldn't process requests in bulk.");
+      return;
+    }
+    setRequests([]);
+    router.refresh();
+  }
+
   return (
     <section aria-label="Join requests">
       <Intro>People asking to join. Approving lets them in straight away; declining tells them, and they can ask again later.</Intro>
+      {Array.isArray(requests) && requests.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-control bg-white/[0.03] p-2.5">
+          <span className="text-caption text-secondary">{requests.length} members waiting</span>
+          <div className="flex items-center gap-2">
+            <ConfirmButton
+              onConfirm={() => void decideAll("reject_all")}
+              question="Decline all requests?"
+              confirmLabel="Decline all"
+              pending={bulkBusy}
+            >
+              Decline all
+            </ConfirmButton>
+            <Button variant="primary" size="sm" loading={bulkBusy} onClick={() => void decideAll("approve_all")}>
+              Approve all
+            </Button>
+          </div>
+        </div>
+      )}
       {requests === null ? (
         <div className="space-y-3">
           <Skeleton shape="block" className="h-12 w-full" />
@@ -575,6 +717,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, {
 function ReportsSection({ group }: { group: GroupDetail }) {
   const { items: reports, setItems, reload } = useSectionList<OpenReport>(`/api/groups/${group.id}/reports`, (body) => body.reports as OpenReport[]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function resolve(report: OpenReport, action: "dismiss" | "remove") {
@@ -598,9 +741,39 @@ function ReportsSection({ group }: { group: GroupDetail }) {
     );
   }
 
+  async function dismissAll() {
+    setBulkBusy(true);
+    setError("");
+    const res = await fetch(`/api/groups/${group.id}/reports`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "dismiss_all" }),
+    }).catch(() => null);
+    setBulkBusy(false);
+    if (!res?.ok) {
+      const body = (await res?.json().catch(() => null)) as { error?: string } | null;
+      setError(body?.error ?? "Couldn't dismiss reports.");
+      return;
+    }
+    setItems([]);
+  }
+
   return (
     <section aria-label="Reports">
       <Intro>Posts and comments members reported. Removing takes it down for everyone; dismissing keeps it up. Both go in the log.</Intro>
+      {Array.isArray(reports) && reports.length > 1 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-control bg-white/[0.03] p-2.5">
+          <span className="text-caption text-secondary">{reports.length} open reports</span>
+          <ConfirmButton
+            onConfirm={() => void dismissAll()}
+            question="Dismiss all open reports?"
+            confirmLabel="Dismiss all"
+            pending={bulkBusy}
+          >
+            Dismiss all
+          </ConfirmButton>
+        </div>
+      )}
       {reports === null || reports === "error" ? (
         <ListState what={reports === null ? "loading" : "error"} onRetry={reload} />
       ) : reports.length === 0 ? (
@@ -644,6 +817,9 @@ const LOG_VERB: Record<ModerationAction, string> = {
   post_removed: "removed a post",
   comment_removed: "removed a comment",
   report_dismissed: "dismissed a report",
+  ownership_transferred: "transferred ownership to",
+  member_muted: "temporarily muted",
+  member_unmuted: "unmuted",
 };
 
 /** Who approved, removed or dismissed what, newest first. */

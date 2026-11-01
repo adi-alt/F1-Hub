@@ -15,7 +15,8 @@ export type RealtimeTable =
   | "group_members"
   | "group_posts"
   | "group_post_comments"
-  | "group_predictions";
+  | "group_predictions"
+  | "group_join_requests";
 
 /** Supabase's own channel subscribe callback status, re-exported under one name so nothing in
  * this app imports realtime-js's status string type from three different places. */

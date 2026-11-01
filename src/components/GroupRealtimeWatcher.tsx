@@ -41,6 +41,7 @@ export function GroupRealtimeWatcher({ groupId }: { groupId: string }) {
   const announcePosts = () => window.dispatchEvent(new CustomEvent(GROUP_POSTS_CHANGED, { detail: { groupId } }));
   useRealtimeSubscription(channelKey, listeners, listeners[2], announcePosts, announcePosts);
   useRealtimeSubscription(channelKey, listeners, listeners[3], refresh, refresh);
+  useRealtimeSubscription(channelKey, listeners, listeners[4], refresh, refresh);
 
   return null;
 }

@@ -103,6 +103,8 @@ export function PostCard({
   const [moderating, setModerating] = useState(false);
   const [moderateError, setModerateError] = useState("");
   const [reportReason, setReportReason] = useState("");
+  const [removalReason, setRemovalReason] = useState("Spam or self-promotion");
+  const [customRemovalReason, setCustomRemovalReason] = useState("");
   const [reported, setReported] = useState(false);
   // The author's own edits and deletion, applied here once the server has taken them.
   const [edited, setEdited] = useState<{ title: string | null; content: string; editedAt: string } | null>(null);
@@ -151,14 +153,14 @@ export function PostCard({
   }
 
   /** Only a decision the server took changes the feed; a failure is said, in the menu, and nothing moves. */
-  async function moderate(action: "approve" | "reject", close: () => void) {
+  async function moderate(action: "approve" | "reject", close: () => void, reason?: string) {
     if (!post.groupId) return;
     setModerating(true);
     setModerateError("");
     const res = await fetch(`/api/groups/${post.groupId}/posts/${post.id}/moderate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, reason }),
     }).catch(() => null);
     setModerating(false);
     if (!res?.ok) {
@@ -241,7 +243,7 @@ export function PostCard({
       <Popover
         align="end"
         ariaLabel="Post actions"
-        panelClassName={menuView === "report" ? "w-72" : menuView === "delete" || menuView === "remove" || menuView === "lock" ? "w-64" : "w-44"}
+        panelClassName={menuView === "report" || menuView === "remove" ? "w-72" : menuView === "delete" || menuView === "lock" ? "w-64" : "w-44"}
         trigger={({ open, toggle, ref }) => (
           <button
             ref={ref}
@@ -260,17 +262,61 @@ export function PostCard({
         )}
       >
         {({ close }) =>
-          menuView === "remove" || menuView === "delete" || menuView === "lock" ? (
+          menuView === "remove" ? (
+            <div className="space-y-2.5 p-3.5">
+              <p className="text-body-sm font-medium text-primary">Remove post</p>
+              <p className="text-caption text-tertiary">Select a removal reason to send to the author:</p>
+              <select
+                value={removalReason}
+                onChange={(e) => setRemovalReason(e.target.value)}
+                className="w-full rounded-control border border-white/10 bg-surface-1 px-2.5 py-1.5 text-caption text-primary focus-visible:outline-2 focus-visible:outline-focus-ring"
+              >
+                <option value="Spam or promotional">Spam or self-promotion</option>
+                <option value="Unshielded spoiler during live session">Unshielded spoiler</option>
+                <option value="Harassment or toxic behavior">Harassment or toxicity</option>
+                <option value="Off-topic / low quality">Off-topic</option>
+                <option value="Violates community guidelines">Violates guidelines</option>
+                <option value="Custom">Custom note...</option>
+              </select>
+              {removalReason === "Custom" && (
+                <input
+                  type="text"
+                  placeholder="Reason for removal..."
+                  value={customRemovalReason}
+                  onChange={(e) => setCustomRemovalReason(e.target.value)}
+                  className="w-full rounded-control border border-white/10 bg-surface-1 px-2.5 py-1 text-caption text-primary placeholder:text-tertiary focus-visible:outline-2 focus-visible:outline-focus-ring"
+                  maxLength={150}
+                />
+              )}
+              <div className="flex gap-2 pt-1">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={moderating}
+                  onClick={() => {
+                    const finalReason = removalReason === "Custom" ? (customRemovalReason.trim() || "Violates community guidelines") : removalReason;
+                    void moderate("reject", close, finalReason);
+                  }}
+                >
+                  Remove & Notify
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setMenuView("actions")}>
+                  Keep
+                </Button>
+              </div>
+              {moderateError && <p role="alert" className="mt-2 text-caption text-danger">{moderateError}</p>}
+            </div>
+          ) : menuView === "delete" || menuView === "lock" ? (
             <div className="p-3.5">
               <p className="text-body-sm font-medium text-primary">
-                {menuView === "delete" ? "Delete your post?" : menuView === "lock" ? `${commentsLocked ? "Unlock" : "Lock"} comments?` : "Remove this post?"}
+                {menuView === "delete" ? "Delete your post?" : `${commentsLocked ? "Unlock" : "Lock"} comments?`}
               </p>
               <p className="mt-1 text-caption text-tertiary">
-                {menuView === "delete" ? "It and its replies are gone for good." : menuView === "lock" ? (commentsLocked ? "Members can reply again." : "Members will no longer be able to reply.") : "It disappears from the feed for everyone."}
+                {menuView === "delete" ? "It and its replies are gone for good." : (commentsLocked ? "Members can reply again." : "Members will no longer be able to reply.")}
               </p>
               <div className="mt-3 flex gap-2">
-                <Button variant={menuView === "lock" && commentsLocked ? "primary" : "danger"} size="sm" loading={moderating} onClick={() => void (menuView === "delete" ? deleteOwn(close) : menuView === "lock" ? toggleCommentsLocked(close) : moderate("reject", close))}>
-                  {menuView === "delete" ? "Delete" : menuView === "lock" ? (commentsLocked ? "Unlock" : "Lock") : "Remove"}
+                <Button variant={menuView === "lock" && commentsLocked ? "primary" : "danger"} size="sm" loading={moderating} onClick={() => void (menuView === "delete" ? deleteOwn(close) : toggleCommentsLocked(close))}>
+                  {menuView === "delete" ? "Delete" : (commentsLocked ? "Unlock" : "Lock")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setMenuView("actions")}>
                   Keep

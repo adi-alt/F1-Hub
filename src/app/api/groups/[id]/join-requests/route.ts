@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listJoinRequests, requestToJoin } from "@/lib/supabase/groups";
+import { decideAllJoinRequests, listJoinRequests, requestToJoin } from "@/lib/supabase/groups";
 import { getSession } from "@/lib/session/getSession";
 import { limitRequest } from "@/lib/rateLimit";
 import { ServiceError, serviceErrorBody } from "@/services/errors";
@@ -30,6 +30,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json(await requestToJoin(id, session.uid, message));
   } catch (err) {
     if (err instanceof ServiceError) return NextResponse.json(serviceErrorBody(err), { status: err.httpStatus });
+    throw err;
+  }
+}
+
+/** Bulk decide (approve or decline) all pending join requests. */
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session.uid) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  const { id } = await params;
+  const { action } = (await request.json().catch(() => ({}))) as { action?: "approve_all" | "reject_all" };
+  if (action !== "approve_all" && action !== "reject_all") {
+    return NextResponse.json({ error: "Invalid action. Use approve_all or reject_all." }, { status: 400 });
+  }
+
+  try {
+    const res = await decideAllJoinRequests(id, session.uid, action === "approve_all" ? "approve" : "reject");
+    return NextResponse.json(res);
+  } catch (err) {
+    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.httpStatus });
     throw err;
   }
 }

@@ -84,6 +84,10 @@ export function CommunityFeed({
   focusPostId,
   focusCommentId,
   weekend = null,
+  slowModeSeconds = 0,
+  mutedUntil = null,
+  muteReason = null,
+  rules = [],
 }: {
   groupId: string;
   communityName: string;
@@ -118,6 +122,10 @@ export function CommunityFeed({
   /** The race weekend this community is living in: the session bar above the feed, a session tag on each post, and
    * each session's result dropped into the stream where it ended. Null outside F1 communities. */
   weekend?: CommunityWeekendData;
+  slowModeSeconds?: number;
+  mutedUntil?: string | null;
+  muteReason?: string | null;
+  rules?: string[];
 }) {
   const [posts, setPosts] = useState<OptimisticPost[]>(initialPosts);
   const [cursor, setCursor] = useState(initialCursor);
@@ -147,6 +155,23 @@ export function CommunityFeed({
   const canPost = canDo(permissions, "post", myRole);
   const filtered = isFiltered(query);
 
+  const [showRulesBanner, setShowRulesBanner] = useState(() => {
+    try {
+      return localStorage.getItem(`apex_dismissed_rules_${groupId}`) !== "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissRules = () => {
+    setShowRulesBanner(false);
+    try {
+      localStorage.setItem(`apex_dismissed_rules_${groupId}`, "1");
+    } catch {
+      // Best-effort local storage
+    }
+  };
+
   const community: ComposerCommunity = {
     id: groupId,
     name: communityName,
@@ -156,6 +181,9 @@ export function CommunityFeed({
     features,
     permissions,
     myRole,
+    slowModeSeconds,
+    mutedUntil,
+    muteReason,
   };
 
   // Every control-row change is a real refetch. The `initialPosts` the server rendered are the
@@ -325,6 +353,27 @@ export function CommunityFeed({
       {weekend && (
         <div className="mb-3">
           <WeekendBar weekend={weekend} selected={session} onSelect={setSession} />
+        </div>
+      )}
+      {showRulesBanner && rules && rules.length > 0 && (
+        <div className="mb-4 rounded-card border border-white/10 bg-surface-1/60 p-4 backdrop-blur-md">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-body-sm font-semibold text-primary">Welcome to {communityName} · Community Rules</h3>
+              <p className="mt-0.5 text-caption text-secondary">Please review and follow the community guidelines:</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={dismissRules} className="text-caption text-tertiary hover:text-primary">
+              Got it
+            </Button>
+          </div>
+          <ol className="mt-3 space-y-1.5 text-caption text-secondary">
+            {rules.map((rule, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="font-semibold text-tertiary">{idx + 1}.</span>
+                <span>{rule}</span>
+              </li>
+            ))}
+          </ol>
         </div>
       )}
       {canPost ? (
