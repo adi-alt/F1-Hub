@@ -344,6 +344,9 @@ export function GroupsFeed({
   const [communityLoadingMore, setCommunityLoadingMore] = useState(false);
   const [communityMoreError, setCommunityMoreError] = useState(false);
   const communitySentinelRef = useRef<HTMLDivElement>(null);
+  const communityLoadingMoreRef = useRef(false);
+  const communityCursorRef = useRef(communityCursor);
+  communityCursorRef.current = communityCursor;
 
   useEffect(() => {
     if (!communityId) return;
@@ -374,30 +377,35 @@ export function GroupsFeed({
   }, [communityId]);
 
   const loadMoreCommunity = useCallback(async () => {
-    if (!communityId || communityLoadingMore || !communityCursor) return;
+    const cur = communityCursorRef.current;
+    if (!communityId || communityLoadingMoreRef.current || !cur) return;
+    communityLoadingMoreRef.current = true;
     setCommunityLoadingMore(true);
     setCommunityMoreError(false);
     try {
-      const res = await fetch(`/api/groups/${communityId}/posts?cursor=${encodeURIComponent(communityCursor)}`);
+      const res = await fetch(`/api/groups/${communityId}/posts?cursor=${encodeURIComponent(cur)}`);
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as { posts: GroupPost[]; nextCursor: string | null };
+      const next = body.nextCursor === cur ? null : body.nextCursor;
       setCommunityPosts((prev) => [...(prev ?? []), ...body.posts]);
-      setCommunityCursor(body.nextCursor);
+      setCommunityCursor(next);
+      communityCursorRef.current = next;
     } catch {
       setCommunityMoreError(true);
     } finally {
+      communityLoadingMoreRef.current = false;
       setCommunityLoadingMore(false);
     }
-  }, [communityId, communityCursor, communityLoadingMore]);
+  }, [communityId]);
 
   useEffect(() => {
     if (!communityId) return;
     const el = communitySentinelRef.current;
-    if (!el || !communityCursor) return;
+    if (!el || !communityCursor || communityMoreError) return;
     const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMoreCommunity(), { root: scrollRootOf(el), rootMargin: "400px" });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [communityId, communityCursor, loadMoreCommunity]);
+  }, [communityId, communityCursor, communityMoreError, loadMoreCommunity]);
 
   function refreshCommunity() {
     if (!communityId) return;
@@ -573,6 +581,11 @@ function AggregateFeedStream({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const prevFeedType = useRef<FeedType>("following");
   const prevRefreshTick = useRef(0);
+  const loadingMoreRef = useRef(false);
+  const cursorRef = useRef(cursor);
+  cursorRef.current = cursor;
+  const feedTypeRef = useRef(feedType);
+  feedTypeRef.current = feedType;
 
   const fetchTab = useCallback((targetType: FeedType, isRefresh: boolean) => {
     if (!isRefresh) {
@@ -585,11 +598,13 @@ function AggregateFeedStream({
       .then((body: { posts: FeedPost[]; nextCursor: string | null }) => {
         setPosts(body.posts);
         setCursor(body.nextCursor);
+        cursorRef.current = body.nextCursor;
       })
       .catch(() => {
         if (!isRefresh) {
           setPosts([]);
           setCursor(null);
+          cursorRef.current = null;
           setTabError(true);
         }
       })
@@ -609,29 +624,34 @@ function AggregateFeedStream({
   }, [feedType, refreshTick, fetchTab]);
 
   const loadMore = useCallback(async () => {
-    if (loadingMore || !cursor) return;
+    const cur = cursorRef.current;
+    if (loadingMoreRef.current || !cur) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     setError(false);
     try {
-      const res = await fetch(`/api/groups/feed?feedType=${feedType}&cursor=${encodeURIComponent(cursor)}`);
+      const res = await fetch(`/api/groups/feed?feedType=${feedTypeRef.current}&cursor=${encodeURIComponent(cur)}`);
       if (!res.ok) throw new Error("failed");
       const body = (await res.json()) as { posts: FeedPost[]; nextCursor: string | null };
+      const next = body.nextCursor === cur ? null : body.nextCursor;
       setPosts((prev) => [...prev, ...body.posts]);
-      setCursor(body.nextCursor);
+      setCursor(next);
+      cursorRef.current = next;
     } catch {
       setError(true);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [cursor, feedType, loadingMore]);
+  }, []);
 
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || !cursor) return;
+    if (!el || !cursor || error) return;
     const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void loadMore(), { root: scrollRootOf(el), rootMargin: "400px" });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [cursor, loadMore]);
+  }, [cursor, error, loadMore]);
 
   return (
     <>
