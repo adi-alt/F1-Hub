@@ -58,6 +58,7 @@ export function MobileNav({
               <li key={link.href}>
                 <Link
                   href={link.href}
+                  prefetch={false}
                   onClick={() => setOpen(false)}
                   aria-current={link.section === activeSection ? "page" : undefined}
                   className={`block rounded-control px-3 py-3 text-body font-medium transition-colors duration-fast ease-standard hover:bg-surface-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus-ring motion-reduce:transition-none ${
