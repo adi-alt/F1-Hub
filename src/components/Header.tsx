@@ -33,6 +33,7 @@ function NavLink({ href, section, active, marked, onPick, tour, children }: { hr
   return (
     <Link
       href={href}
+      prefetch={false}
       data-tour={tour}
       aria-current={current ? "page" : undefined}
       onClick={() => onPick(section)}
