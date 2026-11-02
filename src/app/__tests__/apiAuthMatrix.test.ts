@@ -22,7 +22,6 @@ const EXPECTED: Record<string, { status: number; reason: string } | { public: st
   "/api/cron/emails POST": { status: 403, reason: "automation only: needs the CRON_SECRET bearer, never a session" },
   "/api/admin/race-photos POST": { status: 404, reason: "site admins only, and hidden: anyone else gets Not found" },
   // Public by design.
-  "/api/health GET": { public: "uptime probe" },
   "/api/auth/start POST": { public: "sign-in flow: sends the email code (rate limited)" },
   "/api/auth/otp/verify POST": { public: "sign-in flow: checks the email code (rate limited)" },
   "/api/auth/complete-signup POST": { public: "sign-up flow: finishes a verified sign-up (rate limited)" },

@@ -22,9 +22,10 @@ jobs:
     steps:
       - name: Poll /api/health
         env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://www.apexf1hub.com' }}
         run: |
-          status=$(curl -sS -o health.json -w '%{http_code}' --max-time 30 --retry 2 --retry-all-errors "$APP_BASE_URL/api/health" || echo 000)
+          status=$(curl -sS -o health.json -w '%{http_code}' --max-time 30 --retry 2 --retry-all-errors -H "x-cron-secret: $CRON_SECRET" "$APP_BASE_URL/api/health" || echo 000)
           cat health.json 2>/dev/null || true
           echo
           if [ "$status" != "200" ]; then
