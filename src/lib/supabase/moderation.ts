@@ -28,7 +28,7 @@ import { ServiceError } from "@/services/errors";
 const isModerator = (role: GroupRole | null) => role === "admin" || role === "moderator";
 const MAX_REASON_CHARS = 500;
 
-type PostRow = { id: string; group_id: string | null; user_id: string; content: string };
+type PostRow = { id: string; group_id: string | null; user_id: string; content: string; status: string };
 type CommentRow = {
   id: string;
   post_id: string;
@@ -40,7 +40,7 @@ type CommentRow = {
 };
 
 async function loadPost(postId: string): Promise<PostRow> {
-  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_posts").select("id, group_id, user_id, content").eq("id", postId).maybeSingle());
+  const { data, error } = await queryWithRetry(() => supabaseAdmin.from("group_posts").select("id, group_id, user_id, content, status").eq("id", postId).maybeSingle());
   if (error) throw new Error(`loadPost(${postId}): ${error.message}`);
   if (!data) throw new ServiceError("Post not found.", 404);
   return data as PostRow;
@@ -155,6 +155,7 @@ export async function setPostPinned(postId: string, uid: string, pinned: boolean
 /** Toggles or casts a vote on an interactive post poll. */
 export async function votePostPoll(postId: string, uid: string, optionId: string): Promise<{ poll: PostPollView }> {
   const post = await loadPost(postId);
+  if (post.status !== "published") throw new ServiceError("Post not found.", 404);
   await requireCanViewPost(post.group_id, uid);
   const { data: row, error } = await queryWithRetry(() =>
     supabaseAdmin.from("group_posts").select("poll").eq("id", postId).maybeSingle(),
@@ -203,6 +204,7 @@ export async function setPostSubscription(
   state: PostSubscriptionState,
 ): Promise<{ subscription: PostSubscriptionState }> {
   const post = await loadPost(postId);
+  if (post.status !== "published") throw new ServiceError("Post not found.", 404);
   await requireCanViewPost(post.group_id, uid);
   const { data: row, error } = await queryWithRetry(() =>
     supabaseAdmin.from("group_posts").select("subscriptions").eq("id", postId).maybeSingle(),
@@ -343,7 +345,10 @@ async function tombstone(commentId: string) {
 export async function reportContent(postId: string, uid: string, input: { commentId?: string | null; reason: string }): Promise<void> {
   const post = await loadPost(postId);
   if (!post.group_id) throw new ServiceError("Only posts in a community can be reported.", 400);
-  await requireMember(post.group_id, uid);
+  if (post.status !== "published") throw new ServiceError("Post not found.", 404);
+  // Public posts can be reported by anyone who can see them; private/hidden posts still require
+  // membership. This matches the report affordance on public feed cards.
+  await requireCanViewPost(post.group_id, uid);
   const reason = input.reason.trim();
   if (!reason) throw new ServiceError("Say what's wrong with it.", 400);
   if (reason.length > MAX_REASON_CHARS) throw new ServiceError(`Reports are limited to ${MAX_REASON_CHARS} characters.`, 400);

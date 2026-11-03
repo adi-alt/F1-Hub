@@ -648,8 +648,6 @@ function AggregateFeedStream({
       cursorRef.current = next;
     } catch {
       setError(true);
-      setCursor(null);
-      cursorRef.current = null;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);

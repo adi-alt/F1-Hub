@@ -421,6 +421,20 @@ export async function requireCanViewPost(groupId: string | null, uid: string): P
   throw new ServiceError("You're not a member of this community.", 403);
 }
 
+/** Actions such as votes, comments and subscriptions are only available on published posts.
+ * Membership/visibility is re-derived from the post itself so a caller cannot pair an accessible
+ * group id with a hidden or unpublished post id. */
+export async function requirePublishedPost(postId: string, uid: string): Promise<{ groupId: string | null; userId: string; role: GroupRole | null }> {
+  const { data: post, error } = await queryWithRetry(() =>
+    supabaseAdmin.from("group_posts").select("group_id, user_id, status").eq("id", postId).maybeSingle(),
+  );
+  if (error) throw new Error(`requirePublishedPost(${postId}): ${error.message}`);
+  if (!post || post.status !== "published") throw new ServiceError("Post not found.", 404);
+  const groupId = (post.group_id as string | null) ?? null;
+  const role = await requireCanViewPost(groupId, uid);
+  return { groupId, userId: post.user_id as string, role };
+}
+
 /** A published post whose content later turns out unwelcome can still be pulled by a moderator
  * (see moderatePost) - `rejected` doubles as both "never approved" and "removed after the fact".
  * groupId null - a personal post, never moderated (there's no group whose admin/moderator it would
@@ -1132,7 +1146,8 @@ export async function listFeedPosts(
  * (post_id, user_id) makes that structurally impossible anyway). groupId null skips the group-
  * membership gate (see requireMemberIfGrouped). */
 export async function setVote(groupId: string | null, postId: string, uid: string, direction: 1 | -1): Promise<{ myVote: VoteValue }> {
-  await requireCanViewPost(groupId, uid);
+  const access = await requirePublishedPost(postId, uid);
+  if (access.groupId !== groupId) throw new ServiceError("Post not found.", 404);
   const { data: existing, error: existingError } = await supabaseAdmin.from("group_post_votes").select("value").eq("post_id", postId).eq("user_id", uid).maybeSingle();
   if (existingError) throw new Error(`setVote(${postId}): ${existingError.message}`);
 
@@ -1152,7 +1167,8 @@ export async function setVote(groupId: string | null, postId: string, uid: strin
  * pairing it with a post the caller can reach (audit SEC-12). Toggle + upsert happen atomically in
  * SQL, so a double click can never leave two rows or a stale toggle. */
 export async function setCommentVote(groupId: string | null, postId: string, commentId: string, uid: string, direction: 1 | -1): Promise<{ myVote: VoteValue }> {
-  await requireCanViewPost(groupId, uid);
+  const access = await requirePublishedPost(postId, uid);
+  if (access.groupId !== groupId) throw new ServiceError("Post not found.", 404);
   const { data, error } = await supabaseAdmin.rpc("cast_comment_vote", { p_post_id: postId, p_comment_id: commentId, p_user_id: uid, p_direction: direction });
   if (error) {
     if (error.message.includes("comment_not_in_post")) throw new ServiceError("Comment not found.", 404);
@@ -1165,7 +1181,9 @@ export async function setCommentVote(groupId: string | null, postId: string, com
  * comments per post at most, cheap to nest in JS; a recursive CTE would be real complexity for no
  * real benefit at this scale). */
 export async function listComments(groupId: string | null, postId: string, uid: string): Promise<PostComment[]> {
-  const role = await requireCanViewPost(groupId, uid);
+  const access = await requirePublishedPost(postId, uid);
+  if (access.groupId !== groupId) throw new ServiceError("Post not found.", 404);
+  const role = access.role;
   const canModerate = role === "admin" || role === "moderator";
   const [{ data: comments, error }, { data: postRow }] = await Promise.all([
     queryWithRetry(() => supabaseAdmin.from("group_post_comments").select("*").eq("post_id", postId).is("deleted_at", null).order("created_at")),
@@ -1235,6 +1253,8 @@ export async function addComment(
   parentCommentId?: string | null,
   mediaUrl?: string | null,
 ): Promise<{ id: string }> {
+  const access = await requirePublishedPost(postId, uid);
+  if (access.groupId !== groupId) throw new ServiceError("Post not found.", 404);
   let role = groupId ? await getMemberRole(groupId, uid) : null;
   // groupId null is a personal post - there's no community to take a permission policy from, so
   // the only gate is being signed in (already checked by the route).
