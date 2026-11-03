@@ -3,6 +3,7 @@ import { chatWithProviderFallback } from "@/lib/ai/providerFallback";
 import { APEX_BOT_USER_ID, ensureApexBotProfile } from "./apexBot";
 import { notifyReply } from "@/lib/notificationEvents";
 import { logAIError } from "./telemetry";
+import { guardAIExecution } from "./guardrails";
 
 const COPILOT_SYSTEM_PROMPT = `You are Apex, F1 HUB's Official AI Discussion & Race Strategy Copilot.
 A motorsport fan mentioned you (@Apex) in an F1 discussion thread.
@@ -31,6 +32,12 @@ export async function triggerApexCommentReply(
 ): Promise<string | null> {
   const requestId = `copilot_${Date.now()}`;
   try {
+    const quota = await guardAIExecution(userAuthorId);
+    if (!quota.allowed) {
+      logAIError(requestId, "copilot_rate_limited", quota.reason ?? "AI quota exceeded");
+      return null;
+    }
+
     await ensureApexBotProfile();
 
     // 1. Fetch post context

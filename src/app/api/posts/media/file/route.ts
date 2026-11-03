@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getMemberRole } from "@/lib/supabase/groups";
+import { requireCanViewPost } from "@/lib/supabase/groupPosts";
 import { getSession } from "@/lib/session/getSession";
 import { storedMediaUrl, SERVED_MEDIA_PREFIX } from "@/lib/mediaUrls";
 
 /**
  * A post's photo, video or file, for someone allowed to see the post: its uploader (the composer's preview, before
- * the post exists), anyone signed in for a personal post, and only members for a community's. A private community's
- * media is then as private as its posts, whatever the bucket's own setting. Anything else is a 404, the same as a file
- * that doesn't exist, so this can't be used to probe. Videos get byte ranges (Safari won't play one without them).
+ * the post exists), anyone signed in for a personal post, and anyone permitted to view the community for a
+ * community post. A private community's media is then as private as its posts, whatever the bucket's own setting.
+ * Anything else is a 404, the same as a file that doesn't exist, so this can't be used to probe. Videos get byte
+ * ranges (Safari won't play one without them).
  */
 export async function GET(request: Request) {
   const session = await getSession();
@@ -38,12 +39,53 @@ export async function GET(request: Request) {
 
 const notFound = () => NextResponse.json({ error: "Not found." }, { status: 404 });
 
-/** Whether a post this file belongs to (as its media or its thumbnail) is one the viewer can see. */
-async function mayView(stored: string, uid: string): Promise<boolean> {
-  for (const column of ["media_url", "media_thumb_url"]) {
-    const { data } = await supabaseAdmin.from("group_posts").select("group_id").eq(column, stored).limit(1).maybeSingle();
-    if (!data) continue;
-    return !data.group_id || !!(await getMemberRole(data.group_id as string, uid));
+async function canViewPostMedia(groupId: string | null, uid: string): Promise<boolean> {
+  if (!groupId) return true;
+  try {
+    await requireCanViewPost(groupId, uid);
+    return true;
+  } catch {
+    return false;
   }
+}
+
+/** Whether a post this file belongs to (as primary media, gallery image, or comment media) is visible to the viewer. */
+async function mayView(stored: string, uid: string): Promise<boolean> {
+  // 1. Primary post media or thumbnail
+  for (const column of ["media_url", "media_thumb_url"]) {
+    const { data } = await supabaseAdmin.from("group_posts").select("group_id, status").eq(column, stored).limit(1).maybeSingle();
+    if (data) {
+      if (data.status !== "published") return false;
+      return canViewPostMedia(data.group_id as string | null, uid);
+    }
+  }
+
+  // 2. Multi-image gallery attachments (url or thumbUrl)
+  const { data: galleryPost } = await supabaseAdmin
+    .from("group_posts")
+    .select("group_id, status")
+    .or(`gallery.cs.[{"url":"${stored}"}],gallery.cs.[{"thumbUrl":"${stored}"}]`)
+    .limit(1)
+    .maybeSingle();
+  if (galleryPost) {
+    if (galleryPost.status !== "published") return false;
+    return canViewPostMedia(galleryPost.group_id as string | null, uid);
+  }
+
+  // 3. Comment attachments
+  const { data: comment } = await supabaseAdmin
+    .from("group_post_comments")
+    .select("post_id")
+    .eq("media_url", stored)
+    .is("deleted_at", null)
+    .limit(1)
+    .maybeSingle();
+  if (comment?.post_id) {
+    const { data: post } = await supabaseAdmin.from("group_posts").select("group_id, status").eq("id", comment.post_id).maybeSingle();
+    if (post && post.status === "published") {
+      return canViewPostMedia(post.group_id as string | null, uid);
+    }
+  }
+
   return false;
 }

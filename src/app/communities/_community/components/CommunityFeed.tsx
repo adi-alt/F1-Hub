@@ -247,8 +247,6 @@ export function CommunityFeed({
       cursorRef.current = next;
     } catch {
       setPageError(true);
-      setCursor(null);
-      cursorRef.current = null;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);

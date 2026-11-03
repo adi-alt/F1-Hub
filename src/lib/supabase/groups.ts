@@ -597,15 +597,19 @@ async function getGroupPreviewUncached(groupId: string): Promise<GroupPreview | 
     supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId),
   );
   if (countError) throw new Error(`getGroupPreview(${groupId}): ${countError.message}`);
+  const isPublic = group.visibility === "public";
   return {
     ...communityShapeOf(group),
     id: group.id as string,
     name: group.name as string,
-    description: (group.description as string | null) ?? null,
+    // Private and hidden previews are link-door metadata only. Do not serialize their
+    // description, tags, feature switches or permission map to a non-member.
+    description: isPublic ? ((group.description as string | null) ?? null) : null,
     avatarUrl: (group.avatar_url as string | null) ?? null,
     bannerUrl: (group.banner_url as string | null) ?? null,
     memberCount: count ?? 0,
     visibility: group.visibility as GroupVisibility,
+    ...(isPublic ? {} : { tags: [], features: {}, permissions: {} }),
   };
 }
 
@@ -685,6 +689,7 @@ function accessError(error: { message: string }): Error {
   if (m.includes("invite_revoked")) return new ServiceError("This invitation was cancelled.", 410, "invite_revoked");
   if (m.includes("invite_expired")) return new ServiceError("This invitation has expired.", 410, "invite_expired");
   if (m.includes("invite_exhausted")) return new ServiceError("This invitation has already been used.", 410, "invite_exhausted");
+  if (m.includes("invite_already_used")) return new ServiceError("This invitation has already been used by you.", 410, "invite_exhausted");
   return new Error(`join: ${m}`);
 }
 
@@ -877,6 +882,15 @@ export async function updateGroupSettings(
 ): Promise<void> {
   await requireAdmin(groupId, uid);
   const patch: Record<string, unknown> = {};
+  let currentCommunityType: string | null | undefined;
+  let currentVisibility: string | null | undefined;
+  if (updates.visibility !== undefined || updates.communityType !== undefined) {
+    const { data, error } = await supabaseAdmin.from("groups").select("community_type, visibility").eq("id", groupId).maybeSingle();
+    if (error) throw new Error(`updateGroupSettings(${groupId}): ${error.message}`);
+    if (!data) throw new ServiceError("Group not found.", 404);
+    currentCommunityType = data.community_type as string | null | undefined;
+    currentVisibility = data.visibility as string | null | undefined;
+  }
   if (updates.name !== undefined) {
     const trimmed = updates.name.trim();
     if (trimmed.length < 3 || trimmed.length > 40) throw new ServiceError("Group name must be 3-40 characters.", 400);
@@ -898,15 +912,17 @@ export async function updateGroupSettings(
     if (!isVisibility(updates.visibility)) throw new ServiceError("Unknown visibility.", 400);
     patch.visibility = updates.visibility;
   }
-  if (updates.visibility === "public") {
-    // The create flow's rule, held here too: a Private Circle is never public (createGroup).
-    const type = updates.communityType ?? (await supabaseAdmin.from("groups").select("community_type").eq("id", groupId).maybeSingle()).data?.community_type;
-    if (type === "private_circle") throw new ServiceError("A Private Circle can't be public. Change its type first.", 400);
-  }
   if (updates.moderationEnabled !== undefined) patch.moderation_enabled = updates.moderationEnabled;
   if (updates.communityType !== undefined) {
     if (!isCommunityType(updates.communityType)) throw new ServiceError("Unknown community type.", 400);
     patch.community_type = updates.communityType;
+  }
+  // Validate the final pair, not only fields present in this PATCH. Otherwise a crafted
+  // `{ communityType: "private_circle" }` request can leave an existing public community public.
+  const nextType = updates.communityType ?? currentCommunityType;
+  const nextVisibility = updates.visibility ?? currentVisibility;
+  if (nextType === "private_circle" && nextVisibility === "public") {
+    throw new ServiceError("A Private Circle can't be public. Change its type or visibility first.", 400);
   }
   if (updates.topic !== undefined) patch.topic = normalizeTopic(updates.topic);
   if (updates.tags !== undefined) patch.tags = normalizeTags(updates.tags);
@@ -1114,9 +1130,13 @@ export async function deleteGroup(groupId: string, uid: string): Promise<void> {
   await requireAdmin(groupId, uid);
   // Read before the cascade takes them: who to tell, and what it was called.
   const [{ data: group }, { data: members }] = await Promise.all([
-    supabaseAdmin.from("groups").select("name").eq("id", groupId).maybeSingle(),
+    supabaseAdmin.from("groups").select("name, created_by").eq("id", groupId).maybeSingle(),
     supabaseAdmin.from("group_members").select("user_id").eq("group_id", groupId),
   ]);
+  if (!group) throw new ServiceError("Group not found.", 404);
+  if (group.created_by && group.created_by !== uid) {
+    throw new ServiceError("Only the community owner can delete it.", 403);
+  }
   // `on delete cascade` on every group_* table's group_id FK (schema.sql) handles members,
   // scores, predictions/entries, posts/votes/comments in one statement - nothing else to clean up.
   const { error } = await supabaseAdmin.from("groups").delete().eq("id", groupId);
@@ -1516,6 +1536,14 @@ export async function countPendingJoinRequests(groupId: string): Promise<number>
  */
 export async function leaveGroup(groupId: string, uid: string): Promise<void> {
   const role = await requireMember(groupId, uid);
+
+  const { data: group, error: groupError } = await queryWithRetry(() =>
+    supabaseAdmin.from("groups").select("created_by").eq("id", groupId).maybeSingle(),
+  );
+  if (groupError) throw new Error(`leaveGroup(${groupId}): ${groupError.message}`);
+  if (group?.created_by === uid) {
+    throw new ServiceError("The community owner can't leave. Transfer ownership or delete the community instead.", 400);
+  }
 
   const { count, error: countError } = await queryWithRetry(() =>
     supabaseAdmin.from("group_members").select("user_id", { count: "exact", head: true }).eq("group_id", groupId),

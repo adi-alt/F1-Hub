@@ -130,8 +130,6 @@ export function DiscoverSheet({ onClose }: { onClose: () => void }) {
     } catch {
       // Everything already loaded stays on screen - a failed page never destroys the list.
       setPageError(true);
-      setCursor(null);
-      cursorRef.current = null;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);

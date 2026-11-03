@@ -50,9 +50,9 @@ export async function communityMetadata(id: string): Promise<Metadata> {
   if (!preview) return pageMetadata({ title: "Community", description: "A prediction league and F1 community on Apex F1 Hub.", path: groupHref(id) });
   // A private community's own description stays private: only its name goes on the card (an invite link needs it).
   const about = preview.visibility === "public" && preview.description ? preview.description : "A prediction league and F1 community on Apex F1 Hub.";
-  const members = `${preview.memberCount} member${preview.memberCount === 1 ? "" : "s"}`;
+  const members = preview.visibility === "public" ? ` ${preview.memberCount} member${preview.memberCount === 1 ? "" : "s"}.` : "";
   // Only a public community belongs in search results; the others are reached by link or invitation.
-  return pageMetadata({ title: preview.name, description: `${about} ${members}.`, path: groupHref(id), index: preview.visibility === "public" });
+  return pageMetadata({ title: preview.name, description: `${about}${members}`, path: groupHref(id), index: preview.visibility === "public" });
 }
 
 /** One community, at `/groups?id=` (the Communities page renders this when the URL names a community). */

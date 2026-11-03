@@ -139,8 +139,9 @@ export function CommunityWorkspace({
 }) {
   const isAdmin = group.myRole === "admin";
   const canInvite = canDo(group.permissions, "invite", group.myRole);
-  // A moderator manages the door (join requests); everything else in Manage is an admin's.
-  const canManage = isAdmin || (group.myRole === "moderator" && (group.visibility === "private" || (pendingRequests ?? 0) > 0));
+  // Moderators need the report queue and audit log in every visibility mode. Join requests are
+  // simply absent for public/hidden communities; the Manage surface still contains reports/log.
+  const canManage = isAdmin || group.myRole === "moderator";
   // Memoized because `openTab` below closes over it: a fresh array every render would give that
   // callback a new identity every render, and it's passed into the rail.
   const modules = useMemo(() => resolveModules(group.communityType, group.features), [group.communityType, group.features]);
