@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { PANEL } from "@/components/ui/panel";
+import { sectionFromPathname } from "./sections";
 
 /**
  * Skeleton fallback for the active account tab content while it loads or streams on the server.
@@ -11,8 +12,7 @@ import { PANEL } from "@/components/ui/panel";
 export default function ProfileLoading() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const pathSection = pathname?.split("/").filter(Boolean)[1];
-  const section = pathSection || searchParams.get("tab") || "personalisation";
+  const section = searchParams.get("tab") || sectionFromPathname(pathname);
 
   return (
     <div role="status" className="skeleton-delay mt-8">
