@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export type AccountSection = "personalisation" | "predictions" | "saved" | "notifications" | "profile" | "account";
 
@@ -13,9 +16,19 @@ export const ACCOUNT_SECTIONS: { value: AccountSection; label: string }[] = [
 
 export const accountHref = (section: AccountSection) => `/profile/${section}`;
 
+function sectionFromPathname(pathname: string | null): AccountSection {
+  if (!pathname) return "personalisation";
+  const seg = pathname.split("/").filter(Boolean)[1];
+  return ACCOUNT_SECTIONS.some((s) => s.value === seg) ? (seg as AccountSection) : "personalisation";
+}
+
 /** The account's sections as the site's underline tabs. They're links, not in-page tabs: each section is its own
- * server render (`/profile/`), so Back and a shared link land on the right one. */
-export function AccountNav({ current }: { current: AccountSection }) {
+ * server render (`/profile/`), so Back and a shared link land on the right one. Active state syncs with the URL
+ * automatically via usePathname so layout-level rendering updates immediately. */
+export function AccountNav({ current: explicitCurrent }: { current?: AccountSection } = {}) {
+  const pathname = usePathname();
+  const current = explicitCurrent ?? sectionFromPathname(pathname);
+
   return (
     <nav aria-label="Account sections" className="-mx-1 flex gap-6 overflow-x-auto scrollbar-hide border-b border-white/[0.06] px-1">
       {ACCOUNT_SECTIONS.map((s) => {
