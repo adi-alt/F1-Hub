@@ -1,35 +1,25 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { PANEL } from "@/components/ui/panel";
 
-/** The account page's own shape while it loads, for whichever section the URL names: the eyebrow, title and intro,
- * the section tabs, then that section's panel (the favourites table, the two switches, or the profile form). */
+/**
+ * Skeleton fallback for the active account tab content while it loads or streams on the server.
+ * The masthead identity card and tab navigation are persistently rendered by ProfileLayout.
+ */
 export default function ProfileLoading() {
-  const section = useSearchParams().get("tab");
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const pathSection = pathname?.split("/").filter(Boolean)[1];
+  const section = pathSection || searchParams.get("tab") || "personalisation";
+
   return (
-    <div role="status" className="page-content skeleton-delay py-8">
-      <span className="sr-only">Loading your account</span>
-      <div className={`p-5 sm:p-6 ${PANEL}`}>
-        <div className="flex items-center gap-5">
-          <Skeleton shape="circle" className="size-[88px] shrink-0" />
-          <div className="flex-1">
-            <Skeleton shape="block" className="h-3 w-16" />
-            <Skeleton shape="block" className="mt-2 h-9 w-56" />
-            <Skeleton shape="block" className="mt-2 h-4 w-40" />
-          </div>
-        </div>
-        <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-white/[0.06] pt-5 sm:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} shape="block" className="h-10" />
-          ))}
-        </div>
-      </div>
-      <div className="mt-8 flex gap-6 border-b border-white/[0.06] pb-3">
-        {[112, 96, 56].map((w) => (
-          <Skeleton key={w} shape="block" className="h-4" style={{ width: w }} />
-        ))}
+    <div role="status" className="skeleton-delay mt-8">
+      <span className="sr-only">Loading account section</span>
+      <div>
+        <Skeleton shape="block" className="h-8 w-48" />
+        <Skeleton shape="block" className="mt-2 h-4 max-w-md" />
       </div>
       <div className="mt-6">
         {section === "notifications" ? (
