@@ -12,7 +12,7 @@ import { getSession } from "@/lib/session/getSession";
 import { getCurrentSeason } from "@/lib/currentSeason";
 import { pageMetadata } from "@/lib/seo";
 import { NotificationsForm } from "@/components/profile/NotificationsForm";
-import { ACCOUNT_SECTIONS, accountHref, type AccountSection } from "./components/AccountNav";
+import { ACCOUNT_SECTIONS, accountHref, type AccountSection } from "./sections";
 import { ProfileDetailsForm } from "./components/ProfileDetailsForm";
 import { AccountData } from "./components/AccountData";
 import { ProfileOverview, type ProfileOverviewData } from "./components/ProfileOverview";

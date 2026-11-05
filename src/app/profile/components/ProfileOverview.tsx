@@ -4,7 +4,7 @@ import { EntityAvatar } from "@/components/EntityAvatar";
 import { Icon } from "@/components/ui/Icon";
 import { EYEBROW, PANEL } from "@/components/ui/panel";
 import { compactCount } from "@/lib/format";
-import { accountHref } from "./AccountNav";
+import { accountHref } from "../sections";
 
 export type ProfileOverviewData = {
   memberSince: string;
