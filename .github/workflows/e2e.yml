@@ -69,7 +69,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          # Pinned to Node 24: Node 26 changed stream decompression behavior causing Playwright 1.55's
+          # archive extraction to hang after downloading Chromium.
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -119,7 +121,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          # Pinned to Node 24: Node 26 changed stream decompression behavior causing Playwright 1.55's
+          # archive extraction to hang after downloading Chromium.
+          node-version: 24
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
