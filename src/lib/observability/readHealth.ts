@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { evaluateHealth, staleData, type Health, type PipelineRunRow } from "@/lib/observability/health";
@@ -19,11 +20,21 @@ export async function readHealth(now = new Date()): Promise<Health> {
 
 const readStaleData = unstable_cache(async () => staleData(await readHealth()), ["stale-data-notice"], { revalidate: 300 });
 
-/** What the site-wide stale-data notice shows (staleData), cached for five minutes; empty if it can't be read. */
-export async function getStaleData(): Promise<ReturnType<typeof staleData>> {
+let memoryStaleCache: { val: ReturnType<typeof staleData>; exp: number } | null = null;
+const STALE_MEMORY_TTL_MS = 60_000;
+
+/** What the site-wide stale-data notice shows (staleData), cached for five minutes; empty if it can't be read.
+ * Deduplicated per-request via React.cache and backed by short 60s in-memory caching on warm containers. */
+export const getStaleData = cache(async function getStaleData(): Promise<ReturnType<typeof staleData>> {
+  const now = Date.now();
+  if (memoryStaleCache && memoryStaleCache.exp > now) {
+    return memoryStaleCache.val;
+  }
   try {
-    return await readStaleData();
+    const res = await readStaleData();
+    memoryStaleCache = { val: res, exp: now + STALE_MEMORY_TTL_MS };
+    return res;
   } catch {
     return [];
   }
-}
+});

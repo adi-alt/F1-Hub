@@ -1,4 +1,5 @@
 import type { CircuitDrawing } from "@/lib/circuitLayout";
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchAllRows, queryWithRetry, type SupabaseQueryError } from "@/lib/supabase/queryWithRetry";
@@ -555,7 +556,7 @@ const getArchiveCircuitStats = unstable_cache(
 /** Every circuit that's been through pipeline/enrich_archive_circuits.py — a small table
  * (~100-150 once the archive covers 1950-last year), so listing all of it for the "browse by
  * track" landing grid is cheap. */
-export const getAllArchiveCircuits = unstable_cache(
+const readAllArchiveCircuits = unstable_cache(
   async (): Promise<ArchiveCircuit[]> => {
     const [{ data, error }, stats] = await Promise.all([
       queryWithRetry(() => supabaseAdmin.from("archive_circuits").select(CIRCUIT_COLUMNS)),
@@ -580,6 +581,19 @@ export const getAllArchiveCircuits = unstable_cache(
   ["get-all-archive-circuits"],
   { revalidate: false, tags: [ARCHIVE_TAG] },
 );
+
+let circuitsMemoryCache: { val: ArchiveCircuit[]; exp: number } | null = null;
+const CIRCUITS_MEMORY_TTL_MS = 60_000;
+
+export const getAllArchiveCircuits = cache(async function getAllArchiveCircuits(): Promise<ArchiveCircuit[]> {
+  const now = Date.now();
+  if (circuitsMemoryCache && circuitsMemoryCache.exp > now) {
+    return circuitsMemoryCache.val;
+  }
+  const res = await readAllArchiveCircuits();
+  circuitsMemoryCache = { val: res, exp: now + CIRCUITS_MEMORY_TTL_MS };
+  return res;
+});
 
 /** Exact (case-insensitive) locality+country match against the archive's circuit list - the live
  * `races` table has no circuit_id at all (see supabase/schema.sql: just a free-text `circuit`

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
@@ -105,7 +106,7 @@ export const getCalendarEntry = unstable_cache(
 /** Every round's full session schedule for a season in one query — the per-year counterpart to
  * `getCalendarEntry`, for the season page's calendar heatmap (one query covers every cell instead
  * of one round at a time). */
-export const getCalendarEntriesByYear = unstable_cache(
+const readCalendarEntriesByYear = unstable_cache(
   async (year: number): Promise<CalendarEntry[]> => {
     // See getRacesByYear's own comment - a swallowed error here reads as "empty calendar" and
     // gets cached as such until the tag is next busted, instead of surfacing and letting the
@@ -117,3 +118,17 @@ export const getCalendarEntriesByYear = unstable_cache(
   ["get-calendar-entries-by-year"],
   { revalidate: false, tags: ["calendar"] },
 );
+
+const calendarMemoryCache = new Map<number, { val: CalendarEntry[]; exp: number }>();
+const CALENDAR_MEMORY_TTL_MS = 60_000;
+
+export const getCalendarEntriesByYear = cache(async function getCalendarEntriesByYear(year: number): Promise<CalendarEntry[]> {
+  const now = Date.now();
+  const cached = calendarMemoryCache.get(year);
+  if (cached && cached.exp > now) {
+    return cached.val;
+  }
+  const res = await readCalendarEntriesByYear(year);
+  calendarMemoryCache.set(year, { val: res, exp: now + CALENDAR_MEMORY_TTL_MS });
+  return res;
+});
