@@ -49,11 +49,6 @@ function landingSeason(races: RaceDoc[], standings: { drivers: { driver: string;
 }
 
 export default async function HomePage() {
-  try {
-    const { headers } = await import("next/headers");
-    const h = await headers();
-    console.log(`[PING_SOURCE] ua="${h.get("user-agent") ?? "none"}" ip="${h.get("x-forwarded-for") ?? "none"}" host="${h.get("host") ?? "none"}"`);
-  } catch {}
   const session = await getSession();
   // The season from the calendar, not the wall clock (audit R-22): on 1 January it stays on the
   // finished season until the next calendar is synced.
