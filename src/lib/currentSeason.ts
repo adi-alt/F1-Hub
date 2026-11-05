@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -30,16 +31,29 @@ const readCurrentSeason = unstable_cache(
   { revalidate: 3600 },
 );
 
+let memorySeasonCache: { val: number; exp: number } | null = null;
+const MEMORY_TTL_MS = 60_000;
+
 /** The current season, wherever the site means "this season": the nav, footer and 404 page, every
  * page and API that loads the live season (home, season, race, circuits, communities, profile, the
  * AI routes), seasonStatus() and the archive's newest year. Cached for an hour; falls back to the
- * UTC year if the calendar can't be read, so a database problem never breaks a page. */
-export async function getCurrentSeason(): Promise<number> {
+ * UTC year if the calendar can't be read, so a database problem never breaks a page.
+ *
+ * Wrapped in React.cache() so multiple callers in the same render pass (e.g. RootLayout + HomePage)
+ * share the in-flight promise and do not trigger duplicate Vercel Data Cache reads. Also backed
+ * by a short 60s in-memory cache to eliminate Data Cache reads on warm serverless instances. */
+export const getCurrentSeason = cache(async function getCurrentSeason(): Promise<number> {
+  const now = Date.now();
+  if (memorySeasonCache && memorySeasonCache.exp > now) {
+    return memorySeasonCache.val;
+  }
   const fallback = new Date().getUTCFullYear();
   try {
-    return (await readCurrentSeason()) ?? fallback;
+    const res = (await readCurrentSeason()) ?? fallback;
+    memorySeasonCache = { val: res, exp: now + MEMORY_TTL_MS };
+    return res;
   } catch (err) {
     console.error("getCurrentSeason: calendar read failed, using the UTC year:", err);
     return fallback;
   }
-}
+});

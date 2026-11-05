@@ -33,6 +33,7 @@ const EXPECTED: Record<string, { status: number; reason: string } | { public: st
   "/api/notifications/unsubscribe POST": { public: "one-click unsubscribe: authorised by its signed token, not a session" },
   "/api/groups GET": { public: "community discovery is open to visitors" },
   "/api/picks GET": { public: "answers { pick: null } for a visitor" },
+  "/api/ping GET": { public: "zero-overhead health check for external uptime monitors" },
   "/api/ai/homepage-intelligence POST": { public: "visitors get the anonymous, rate-limited summary" },
   "/api/ai/race-intelligence POST": { public: "visitors get the anonymous, rate-limited summary" },
 };

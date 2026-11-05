@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { queryWithRetry } from "@/lib/supabase/queryWithRetry";
@@ -26,7 +27,7 @@ function fromTeamRow(row: TeamRow): CurrentTeam {
 // (see its comment). revalidate: false - fetch_races.py calls trigger_revalidation("media") the
 // moment it finishes writing the roster, the real freshness signal, and MediaRealtimeWatcher
 // tells an already-open browser to go pull it.
-export const getAllCurrentDrivers = unstable_cache(
+const readAllCurrentDrivers = unstable_cache(
   async (): Promise<CurrentDriver[]> => {
     const { data, error } = await queryWithRetry(() => supabaseAdmin.from("drivers").select("*").order("name"));
     if (error) throw new Error(`getAllCurrentDrivers: ${error.message}`);
@@ -36,7 +37,20 @@ export const getAllCurrentDrivers = unstable_cache(
   { revalidate: false, tags: ["media"] },
 );
 
-export const getAllCurrentTeams = unstable_cache(
+let driversMemoryCache: { val: CurrentDriver[]; exp: number } | null = null;
+const MEDIA_MEMORY_TTL_MS = 60_000;
+
+export const getAllCurrentDrivers = cache(async function getAllCurrentDrivers(): Promise<CurrentDriver[]> {
+  const now = Date.now();
+  if (driversMemoryCache && driversMemoryCache.exp > now) {
+    return driversMemoryCache.val;
+  }
+  const res = await readAllCurrentDrivers();
+  driversMemoryCache = { val: res, exp: now + MEDIA_MEMORY_TTL_MS };
+  return res;
+});
+
+const readAllCurrentTeams = unstable_cache(
   async (): Promise<CurrentTeam[]> => {
     const { data, error } = await queryWithRetry(() => supabaseAdmin.from("teams").select("*").order("name"));
     if (error) throw new Error(`getAllCurrentTeams: ${error.message}`);
@@ -45,6 +59,18 @@ export const getAllCurrentTeams = unstable_cache(
   ["get-all-current-teams"],
   { revalidate: false, tags: ["media"] },
 );
+
+let teamsMemoryCache: { val: CurrentTeam[]; exp: number } | null = null;
+
+export const getAllCurrentTeams = cache(async function getAllCurrentTeams(): Promise<CurrentTeam[]> {
+  const now = Date.now();
+  if (teamsMemoryCache && teamsMemoryCache.exp > now) {
+    return teamsMemoryCache.val;
+  }
+  const res = await readAllCurrentTeams();
+  teamsMemoryCache = { val: res, exp: now + MEDIA_MEMORY_TTL_MS };
+  return res;
+});
 
 export const getCurrentDriver = unstable_cache(
   async (code: string): Promise<CurrentDriver | null> => {

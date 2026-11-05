@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchAllRows, queryWithRetry } from "@/lib/supabase/queryWithRetry";
@@ -327,7 +328,7 @@ export const getRaceLaps = unstable_cache(
 
 /** A season's races in calendar order, including rounds `races` has no row for yet (see
  * `withCalendarPlaceholders`) — otherwise the back half of an in-progress season is invisible. */
-export const getRacesByYear = unstable_cache(
+const readRacesByYear = unstable_cache(
   async (year: number): Promise<RaceDoc[]> => {
     // A transient query failure (timeout, connection blip) must not silently read as "no races
     // this season" - `data` alone comes back null on error just like it does on a genuinely
@@ -344,6 +345,20 @@ export const getRacesByYear = unstable_cache(
   // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
   { revalidate: false, tags: ["races", "calendar"] },
 );
+
+const racesMemoryCache = new Map<number, { val: RaceDoc[]; exp: number }>();
+const RACES_MEMORY_TTL_MS = 60_000;
+
+export const getRacesByYear = cache(async function getRacesByYear(year: number): Promise<RaceDoc[]> {
+  const now = Date.now();
+  const cached = racesMemoryCache.get(year);
+  if (cached && cached.exp > now) {
+    return cached.val;
+  }
+  const res = await readRacesByYear(year);
+  racesMemoryCache.set(year, { val: res, exp: now + RACES_MEMORY_TTL_MS });
+  return res;
+});
 
 // Per-view select for season lists (audit R-70, PERF-03): everything a list reads - identity, status,
 // results, sprint results, the frozen predictions - without the per-race detail only a race page uses
@@ -443,14 +458,16 @@ export const getRacesByName = unstable_cache(
 /** The next race on the calendar that isn't marked completed yet, for the home page's hero card —
  * built on the same merged (`races` + `calendar` placeholder) list `getRacesByYear` returns, so
  * this doesn't go blank just because the immediate next round hasn't had a session yet. */
-export const getNextUpcomingRace = unstable_cache(
-  async (year: number): Promise<RaceDoc | null> => {
-    const races = await getRacesByYear(year);
-    return races.find((r) => r.status !== "completed") ?? null;
-  },
-  ["get-next-upcoming-race"],
-  // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
-  { revalidate: false, tags: ["races", "calendar"] },
+export const getNextUpcomingRace = cache(
+  unstable_cache(
+    async (year: number): Promise<RaceDoc | null> => {
+      const races = await getRacesByYear(year);
+      return races.find((r) => r.status !== "completed") ?? null;
+    },
+    ["get-next-upcoming-race"],
+    // "calendar" too: these merge in calendar placeholders, so a schedule change (sync_calendar busts "calendar") must expire them.
+    { revalidate: false, tags: ["races", "calendar"] },
+  ),
 );
 
 /** The current grid — driver/team pairs from the most recent race with real results or a real
