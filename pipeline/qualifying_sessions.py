@@ -44,7 +44,7 @@ def parse_jolpica_stages(payload: dict, year: int, round_num: int, event_date) -
         reached = max((i + 1 for i, k in enumerate(STAGE_KEYS) if k in q), default=1)
         rows.append(
             {
-                "driver": q["Driver"].get("code"),
+                "driver": jolpica.driver_code(q["Driver"]),
                 "driverName": f"{q['Driver'].get('givenName', '')} {q['Driver'].get('familyName', '')}".strip(),
                 "team": q["Constructor"].get("name"),
                 "position": int(q["position"]),

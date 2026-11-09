@@ -438,11 +438,21 @@ def fetch_race_openf1(year: int, round_num: int, country: str, race_date, qualif
             print(f"    openf1: rejecting result ({error}), not writing partial/bad data")
             return None
 
+        # Only drivers actually classified in `results` (a DNS car skipped above still has a pre-race
+        # row in OpenF1's /v1/stints, e.g. Bottas in 2026 round 20) may appear in stints, laps or
+        # pace/traffic analytics, which must always reference drivers present in `race_results`.
+        classified_codes = {r["driver"] for r in results}
+        classified_code_by_number = {
+            n: code for n, code in driver_code_by_number.items() if code in classified_codes
+        }
+        lap_timings = [t for t in lap_timings if t["driver"] in classified_codes]
+        laps_by_driver = {d: laps for d, laps in laps_by_driver.items() if d in classified_codes}
+
         weather = _fetch_weather(session_key)
         stints_raw = _fetch_stints(session_key)
-        tire_stints = _stints_to_tire_stints(stints_raw, driver_code_by_number)
-        tire_compound_pace = _fetch_tire_compound_pace(stints_raw, laps_by_driver, driver_code_by_number)
-        traffic_stats = _fetch_traffic_stats(session_key, driver_code_by_number)
+        tire_stints = _stints_to_tire_stints(stints_raw, classified_code_by_number)
+        tire_compound_pace = _fetch_tire_compound_pace(stints_raw, laps_by_driver, classified_code_by_number)
+        traffic_stats = _fetch_traffic_stats(session_key, classified_code_by_number)
 
         # Same convention fetch_race() already uses for FastF1's own race_control_messages: count
         # DEPLOYED events only, not the paired ENDING message, to avoid double-counting a period -

@@ -349,3 +349,72 @@ finally:
 assert all(fetch_races.is_sprint_weekend({"EventFormat": f}) for f in ("sprint", "sprint_shootout", "sprint_qualifying"))
 assert not fetch_races.is_sprint_weekend({"EventFormat": "conventional"}) and not fetch_races.is_sprint_weekend({})
 print("sprint_for_round: all checks passed")
+
+# --- Jolpica driver_code fallback & OpenF1 DNS filtering (2026 round 20 regressions) ------------
+assert jolpica.driver_code({"driverId": "rafael_camara", "givenName": "Rafael", "familyName": "Camara"}) == "CAM"
+assert jolpica.driver_code({"driverId": "nicolas_hulkenberg", "code": "HUL", "familyName": "Hülkenberg"}) == "HUL"
+assert jolpica.driver_code({"driverId": "perez", "familyName": "Pérez"}) == "PER"
+assert jolpica.driver_code({"driverId": "unknown", "familyName": ""}) is None
+
+no_code_res = load("jolpica_2026_15_results.json")
+no_code_res["MRData"]["RaceTable"]["Races"][0]["Results"][-1]["Driver"].pop("code", None)
+no_code_res["MRData"]["RaceTable"]["Races"][0]["Results"][-1]["Driver"]["familyName"] = "Stroll"
+parsed_no_code = jolpica.parse_results(no_code_res, 2026, 15, BAKU)
+assert parsed_no_code is not None and parsed_no_code[-1]["driver"] == "STR"
+
+dns_sessions = [
+    {"session_name": "Race", "session_key": 999, "meeting_key": 1299, "location": "São Paulo", "date_start": "2026-11-08T17:00:00+00:00", "date_end": "2026-11-08T19:00:00+00:00"},
+]
+dns_drivers = [
+    {"driver_number": i, "name_acronym": f"D{i:02d}", "full_name": f"Driver {i}", "team_name": "Team"}
+    for i in range(1, 22)
+] + [{"driver_number": 77, "name_acronym": "BOT", "full_name": "Valtteri Bottas", "team_name": "Cadillac"}]
+dns_results = [
+    {"driver_number": i, "position": i, "points": 0, "gap_to_leader": 0.0 if i == 1 else float(i), "dnf": False, "dns": False, "dsq": False, "number_of_laps": 71}
+    for i in range(1, 22)
+] + [{"driver_number": 77, "position": None, "points": 0, "gap_to_leader": None, "dnf": False, "dns": True, "dsq": False, "number_of_laps": 0}]
+dns_stints = [
+    {"driver_number": 1, "stint_number": 1, "lap_start": 1, "lap_end": 10, "compound": "MEDIUM", "tyre_age_at_start": 0},
+    {"driver_number": 77, "stint_number": 1, "lap_start": 1, "lap_end": 1, "compound": "INTERMEDIATE", "tyre_age_at_start": 0},
+]
+dns_laps = [
+    {"driver_number": 1, "lap_number": lap, "lap_duration": 75.0 + lap * 0.1, "is_pit_out_lap": False}
+    for lap in range(1, 6)
+] + [
+    {"driver_number": 77, "lap_number": lap, "lap_duration": 76.0 + lap * 0.1, "is_pit_out_lap": False}
+    for lap in range(1, 6)
+]
+dns_intervals = [
+    {"driver_number": 1, "interval": 1.2},
+    {"driver_number": 77, "interval": 0.8},
+]
+
+
+def fake_dns_get(path, **params):
+    return {
+        "sessions": dns_sessions,
+        "session_result": dns_results,
+        "drivers": dns_drivers,
+        "laps": dns_laps,
+        "weather": [],
+        "stints": dns_stints,
+        "intervals": dns_intervals,
+        "race_control": [],
+    }[path]
+
+
+saved = openf1_fallback._get, openf1_fallback.datetime
+openf1_fallback._get = fake_dns_get
+try:
+    openf1_fallback.datetime = clock(datetime.datetime(2026, 11, 8, 20, 0, tzinfo=utc))
+    race_of1 = openf1_fallback.fetch_race_openf1(2026, 20, "Brazil", datetime.date(2026, 11, 8), [])
+    assert race_of1 is not None
+    classified = {r["driver"] for r in race_of1["results"]}
+    assert "BOT" not in classified and len(classified) == 21
+    assert {t["driver"] for t in race_of1["tireStints"]} <= classified
+    assert {t["driver"] for t in race_of1["tireCompoundPace"]} <= classified
+    assert {t["driver"] for t in race_of1["trafficStats"]} <= classified
+    assert {t["driver"] for t in race_of1["lapTimings"]} <= classified
+finally:
+    openf1_fallback._get, openf1_fallback.datetime = saved
+print("jolpica driver_code fallback & openf1 DNS filtering: all checks passed")

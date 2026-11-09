@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 from datetime import date, datetime
@@ -89,6 +90,19 @@ def _race_for(payload: dict, year: int, round_num: int, event_date) -> dict | No
     return race
 
 
+def driver_code(driver: dict) -> str | None:
+    """Three-letter code for a Jolpica `Driver` object. Jolpica occasionally leaves `code` unset on
+    a mid-season debutant or replacement driver (2026 round 20: `rafael_camara` has familyName
+    'Camara' and no `code`, which rejected the whole race, qualifying and lap dataset); the standard
+    three-letter ASCII prefix of `familyName` ('CAM') is used when `code` is absent."""
+    code = driver.get("code")
+    if code:
+        return code
+    family = unicodedata.normalize("NFKD", driver.get("familyName") or "").encode("ascii", "ignore").decode("ascii")
+    letters = "".join(ch for ch in family if ch.isalpha()).upper()
+    return letters[:3] if len(letters) >= 3 else None
+
+
 def _looks_complete(rows: list[dict], position_key: str) -> str | None:
     """None if this reads as a real, complete classification; otherwise the reason it doesn't."""
     if len(rows) < 10:
@@ -119,7 +133,7 @@ def _classification(entries: list[dict], round_num: int, label: str) -> list[dic
             winner_laps = r.get("laps")
         rows.append(
             {
-                "driver": r["Driver"].get("code"),
+                "driver": driver_code(r["Driver"]),
                 "driverName": f"{r['Driver'].get('givenName', '')} {r['Driver'].get('familyName', '')}".strip(),
                 "constructor": r["Constructor"].get("name"),
                 "gridPosition": int(r["grid"]) if r.get("grid") not in (None, "") else None,
@@ -175,7 +189,7 @@ def parse_qualifying(payload: dict, year: int, round_num: int, event_date) -> li
         best = next((parse_lap_time(q.get(part)) for part in ("Q3", "Q2", "Q1") if q.get(part)), None)
         rows.append(
             {
-                "driver": q["Driver"].get("code"),
+                "driver": driver_code(q["Driver"]),
                 "driverName": f"{q['Driver'].get('givenName', '')} {q['Driver'].get('familyName', '')}".strip(),
                 "constructor": q["Constructor"].get("name"),
                 "gridPosition": int(q["position"]),
@@ -223,7 +237,7 @@ def parse_laps(pages: list[dict], results_payload: dict, year: int, round_num: i
     results_race = _race_for(results_payload, year, round_num, event_date)
     if results_race is None or not results_race.get("Results"):
         return None
-    code_by_id = {r["Driver"]["driverId"]: r["Driver"].get("code") for r in results_race["Results"]}
+    code_by_id = {r["Driver"]["driverId"]: driver_code(r["Driver"]) for r in results_race["Results"]}
     winner_laps = next((int(r["laps"]) for r in results_race["Results"] if r.get("position") == "1"), None)
 
     rows: list[dict] = []
