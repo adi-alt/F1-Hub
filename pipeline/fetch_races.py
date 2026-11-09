@@ -883,17 +883,20 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             ]
             # Every driver in this round's classification is in `result_rows`, so anything else under
             # this race_id came from a superseded write and is not part of the result - see prune().
+            classified_drivers = {r["driver"] for r in result_rows}
             upsert(cur, "race_results", result_rows, ["race_id", "driver"], skip_unchanged=True)
             prune(cur, "race_results", "race_id", race_id, "driver", [r["driver"] for r in result_rows])
             stint_rows = [
                 {"race_id": race_id, "driver": t["driver"], "stint_number": t["stintNumber"], "compound": t["compound"], "lap_count": t["lapCount"]}
                 for t in race["tireStints"]
+                if t["driver"] in classified_drivers
             ]
             upsert(cur, "tire_stints", stint_rows, ["race_id", "driver", "stint_number"], skip_unchanged=True)
             prune(cur, "tire_stints", "race_id", race_id, ("driver", "stint_number"), [(t["driver"], t["stint_number"]) for t in stint_rows])
             lap_rows = [
                 {"race_id": race_id, "driver": t["driver"], "lap_number": t["lapNumber"], "position": t["position"], "time": t["time"]}
                 for t in race["lapTimings"]
+                if t["driver"] in classified_drivers
             ]
             # position/time are keep_known: the OpenF1 path has no per-lap car position at all, so a
             # preliminary refresh of a round must not erase positions FastF1 already stored for it.

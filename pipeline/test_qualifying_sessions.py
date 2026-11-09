@@ -60,4 +60,8 @@ assert teams == {"Alpine", "Aston Martin", "Audi", "Cadillac", "Ferrari", "Haas 
 sq_named = qs.qualifying_result_rows("2026_r17", "SQ", sq, "openf1", roster={"VER": {"name": "Max Verstappen"}})
 assert sq_named[0]["driver_name"] == "Max Verstappen", "the app's name, not OpenF1's capitalised one"
 assert next(r for r in sq_named if r["driver"] == "RUS")["driver_name"] == "George RUSSELL", "unknown to the roster: the source's name, as given"
+no_code_quali = load("jolpica_2026_17_qualifying.json")
+no_code_quali["MRData"]["RaceTable"]["Races"][0]["QualifyingResults"][-1]["Driver"].pop("code", None)
+stages_no_code = qs.parse_jolpica_stages(no_code_quali, 2026, 17, date(2026, 10, 11))
+assert stages_no_code and len(stages_no_code) == 22
 print("qualifying_sessions: all checks passed")
