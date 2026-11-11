@@ -74,6 +74,8 @@ def fetch_qualifying(year: int, round_num: int):
             session.load(laps=True, weather=False, telemetry=False)
             best_laps = session.laps.groupby("Driver")["LapTime"].min()
             pole_time = best_laps.min()
+        if pd.isna(pole_time):
+            raise fastf1.core.DataNotLoadedError("no qualifying lap times")
 
         grid = []
         for row in results.itertuples():
@@ -737,14 +739,15 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
             "select session, driver, source, stage1_sec, stage2_sec, stage3_sec from qualifying_results where race_id = %s",
             (race_id,),
         )
-        stored_q = cur.fetchall()
+        raw_stored_q = cur.fetchall()
+        stored_q = [(session, driver, source) for session, driver, source, *_ in raw_stored_q]
         stored_sources = {}
         timed_sessions = {
             session
-            for session, _driver, _source, s1, s2, s3 in stored_q
+            for session, _driver, _source, s1, s2, s3 in raw_stored_q
             if s1 is not None or s2 is not None or s3 is not None
         }
-        for session, _driver, source, *_ in stored_q:
+        for session, _driver, source in stored_q:
             if session not in timed_sessions:
                 continue
             # One non-official row is enough to keep looking for the official classification.
