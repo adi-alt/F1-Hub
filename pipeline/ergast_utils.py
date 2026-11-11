@@ -324,7 +324,7 @@ def trigger_revalidation(tag: str = "archive-data") -> None:
     if not secret:
         print("  (skipping cache revalidation: CRON_SECRET not set in this environment)")
         return
-    base_url = os.environ.get("APP_BASE_URL", "https://apexf1hub.vercel.app")
+    base_url = os.environ.get("APP_BASE_URL", "https://www.apexf1hub.com")
     try:
         resp = requests.post(
             f"{base_url}/api/admin/revalidate",

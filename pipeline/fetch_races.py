@@ -733,10 +733,20 @@ def build_and_push(cur, year: int, round_num: int, known_driver_codes: set[str])
     cur.execute("select to_regclass('public.qualifying_results') is not null")
     stage_sessions, stored_q = [], []
     if cur.fetchone()[0]:
-        cur.execute("select session, driver, source from qualifying_results where race_id = %s", (race_id,))
+        cur.execute(
+            "select session, driver, source, stage1_sec, stage2_sec, stage3_sec from qualifying_results where race_id = %s",
+            (race_id,),
+        )
         stored_q = cur.fetchall()
         stored_sources = {}
-        for session, _driver, source in stored_q:
+        timed_sessions = {
+            session
+            for session, _driver, _source, s1, s2, s3 in stored_q
+            if s1 is not None or s2 is not None or s3 is not None
+        }
+        for session, _driver, source, *_ in stored_q:
+            if session not in timed_sessions:
+                continue
             # One non-official row is enough to keep looking for the official classification.
             stored_sources[session] = source if stored_sources.get(session, source) == source else "openf1"
         stage_sessions = stages_for_round(year, round_num, str(calendar_event["Country"]), calendar_event["EventDate"], is_sprint_weekend(calendar_event), stored_sources)
@@ -1102,10 +1112,11 @@ def is_already_completed(cur, race_id: str) -> bool:
     A round that's `completed` via `results_source = 'openf1_preliminary'` is NOT considered done
     here on purpose - see openf1_fallback.py/OPENF1_FALLBACK.md - it's a real, displayable result,
     but the pipeline keeps retrying FastF1/Jolpica for the official upgrade (fuller analytics,
-    real points) within next_relevant_round()'s own fetch window."""
-    cur.execute("select status, results_source from races where id = %s", (race_id,))
+    real points) within next_relevant_round()'s own fetch window. Also requires `pole_time_sec` to
+    be populated so a round whose initial qualifying import lacked lap times self-heals."""
+    cur.execute("select status, results_source, pole_time_sec from races where id = %s", (race_id,))
     row = cur.fetchone()
-    return bool(row) and row[0] == "completed" and row[1] == "official"
+    return bool(row) and row[0] == "completed" and row[1] == "official" and row[2] is not None
 
 
 # Candidate rounds for next_relevant_round(), one query for the whole season (see the file's header).

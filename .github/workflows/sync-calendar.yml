@@ -43,3 +43,4 @@ jobs:
           # Same gap as fetch-races.yml: sync_calendar.py calls
           # ergast_utils.trigger_revalidation("calendar"), which silently no-ops without this.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://www.apexf1hub.com' }}

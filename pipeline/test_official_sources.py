@@ -362,6 +362,13 @@ no_code_res["MRData"]["RaceTable"]["Races"][0]["Results"][-1]["Driver"]["familyN
 parsed_no_code = jolpica.parse_results(no_code_res, 2026, 15, BAKU)
 assert parsed_no_code is not None and parsed_no_code[-1]["driver"] == "STR"
 
+empty_quali = load("jolpica_2026_15_qualifying.json")
+for q in empty_quali["MRData"]["RaceTable"]["Races"][0]["QualifyingResults"]:
+    for part in ("Q1", "Q2", "Q3"):
+        if part in q:
+            q[part] = ""
+assert jolpica.parse_qualifying(empty_quali, 2026, 15, BAKU) is None, "empty qualifying lap times must be rejected"
+
 dns_sessions = [
     {"session_name": "Race", "session_key": 999, "meeting_key": 1299, "location": "São Paulo", "date_start": "2026-11-08T17:00:00+00:00", "date_end": "2026-11-08T19:00:00+00:00"},
 ]

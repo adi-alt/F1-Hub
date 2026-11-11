@@ -197,6 +197,11 @@ def parse_qualifying(payload: dict, year: int, round_num: int, event_date) -> li
             }
         )
     reason = _looks_complete(rows, "gridPosition")
+    if not reason:
+        timed = [r for r in rows if r["bestSec"] is not None]
+        p1 = next((r for r in rows if r["gridPosition"] == 1), None)
+        if len(timed) < 10 or p1 is None or p1["bestSec"] is None:
+            reason = f"only {len(timed)} car(s) with lap times"
     if reason:
         print(f"    jolpica: round {round_num} qualifying rejected ({reason})")
         return None
