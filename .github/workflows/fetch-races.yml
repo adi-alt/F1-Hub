@@ -71,6 +71,7 @@ jobs:
           # the bug that left a completed race showing as not-yet-run - was previously missing
           # from every step here that calls trigger_revalidation.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://www.apexf1hub.com' }}
           # Only ever true on a manual workflow_dispatch run - github.event.inputs doesn't exist
           # on a schedule-triggered run, so this expression evaluates empty/false on every
           # automated tick rather than erroring.
@@ -93,6 +94,7 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           # Also calls trigger_revalidation("races") on its own - same reasoning as above.
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://www.apexf1hub.com' }}
 
       # Depends only on the results this same run's first step just fetched, not on train_predict's
       # ML output — ordered after it anyway since there's no reason to run before results exist.

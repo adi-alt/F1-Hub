@@ -16,7 +16,7 @@ with cal as (
    where c.year = %(year)s and c.status is distinct from 'cancelled'
 ),
 rc as (
-  select r.round, r.status, r.results_source, regexp_replace(r.id, '^[0-9]{4}_r[0-9]+_', '') as slug
+  select r.round, r.status, r.results_source, r.pole_time_sec, regexp_replace(r.id, '^[0-9]{4}_r[0-9]+_', '') as slug
     from races r
    where r.year = %(year)s
 )
@@ -26,9 +26,10 @@ select cal.round, cal.sessions, cal.race_date, 'calendar' as source
  where rc.slug is null
     or rc.status is distinct from 'completed'
     or rc.results_source = 'openf1_preliminary'
+    or rc.pole_time_sec is null
 union all
 select rc.round, null, null, 'races'
   from rc
- where (rc.status is distinct from 'completed' or rc.results_source = 'openf1_preliminary')
+ where (rc.status is distinct from 'completed' or rc.results_source = 'openf1_preliminary' or rc.pole_time_sec is null)
    and not exists (select 1 from calendar c where c.year = %(year)s and regexp_replace(c.id, '^[0-9]{4}_r[0-9]+_', '') = rc.slug)
 order by 1, 4

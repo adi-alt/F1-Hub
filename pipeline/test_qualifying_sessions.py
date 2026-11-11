@@ -64,4 +64,11 @@ no_code_quali = load("jolpica_2026_17_qualifying.json")
 no_code_quali["MRData"]["RaceTable"]["Races"][0]["QualifyingResults"][-1]["Driver"].pop("code", None)
 stages_no_code = qs.parse_jolpica_stages(no_code_quali, 2026, 17, date(2026, 10, 11))
 assert stages_no_code and len(stages_no_code) == 22
+
+empty_stage_quali = load("jolpica_2026_17_qualifying.json")
+for q in empty_stage_quali["MRData"]["RaceTable"]["Races"][0]["QualifyingResults"]:
+    for part in ("Q1", "Q2", "Q3"):
+        if part in q:
+            q[part] = ""
+assert qs.parse_jolpica_stages(empty_stage_quali, 2026, 17, date(2026, 10, 11)) is None, "empty stage times must be rejected"
 print("qualifying_sessions: all checks passed")

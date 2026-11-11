@@ -42,8 +42,8 @@ def audit_races(cur) -> list[str]:
     internally-consistent Grand Prix."""
     problems: list[str] = []
 
-    cur.execute("select id, status, pole_sitter from races")
-    races = {r[0]: {"status": r[1], "pole_sitter": r[2]} for r in cur.fetchall()}
+    cur.execute("select id, status, pole_sitter, pole_time_sec from races")
+    races = {r[0]: {"status": r[1], "pole_sitter": r[2], "pole_time_sec": r[3]} for r in cur.fetchall()}
 
     cur.execute("select race_id, driver, finish_position, status, points, grid from race_results")
     by_race: dict[str, list[tuple]] = defaultdict(list)
@@ -92,6 +92,8 @@ def audit_races(cur) -> list[str]:
         pole_sitter = race["pole_sitter"]
         if pole_sitter and pole_sitter not in {d for d in drivers}:
             problems.append(f"{race_id}: pole_sitter {pole_sitter!r} does not appear in its own race_results")
+        if race["status"] == "completed" and pole_sitter and race["pole_time_sec"] is None:
+            problems.append(f"{race_id}: pole_sitter {pole_sitter!r} has a null pole_time_sec")
 
     return problems
 
@@ -135,6 +137,17 @@ def audit_related_tables(cur) -> list[str]:
         # the "wrong meeting's lap data" shape, not a legitimate zero-lap race.
         if classified > 0 and laps == 0:
             problems.append(f"race_laps: {race_id} has {classified} classified finisher(s) but zero recorded laps")
+
+    cur.execute("select to_regclass('public.qualifying_results') is not null")
+    if cur.fetchone()[0]:
+        cur.execute(
+            "select race_id, session, count(*) "
+            "from qualifying_results "
+            "group by race_id, session "
+            "having count(stage1_sec) + count(stage2_sec) + count(stage3_sec) = 0"
+        )
+        for race_id, session, row_count in cur.fetchall():
+            problems.append(f"qualifying_results: {race_id} {session} has {row_count} row(s) with zero stage lap times")
 
     return problems
 

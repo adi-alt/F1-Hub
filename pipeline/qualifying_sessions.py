@@ -54,6 +54,11 @@ def parse_jolpica_stages(payload: dict, year: int, round_num: int, event_date) -
             }
         )
     reason = jolpica._looks_complete([{**r, "gridPosition": r["position"]} for r in rows], "gridPosition")
+    if not reason:
+        timed = [r for r in rows if any(t is not None for t in r["stages"])]
+        p1 = next((r for r in rows if r["position"] == 1), None)
+        if len(timed) < 10 or p1 is None or all(t is None for t in p1["stages"]):
+            reason = f"only {len(timed)} car(s) with stage times"
     if reason:
         print(f"    jolpica: round {round_num} qualifying stages rejected ({reason})")
         return None
